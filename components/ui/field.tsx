@@ -6,13 +6,15 @@ import { FontSize, Palette, Radius, Spacing } from '@/constants/theme';
 /** A labeled text input styled for the dark theme. */
 export function Field({
   label,
+  required,
   style,
   ...rest
-}: TextInputProps & { label: string }) {
+}: TextInputProps & { label: string; required?: boolean }) {
   return (
     <View style={styles.wrap}>
       <Txt variant="label" style={styles.label}>
         {label}
+        {required ? <Txt color={Palette.accent}> *</Txt> : null}
       </Txt>
       <TextInput
         placeholderTextColor={Palette.textDim}

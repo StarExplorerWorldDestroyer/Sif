@@ -2,6 +2,29 @@ import 'react-native-url-polyfill/auto';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
+
+/**
+ * Storage adapter for the auth session.
+ *
+ * - Native (iOS/Android): AsyncStorage.
+ * - Web: localStorage, but guarded so it doesn't crash during the static
+ *   web build (which runs in Node, where `window` doesn't exist).
+ */
+const webStorage = {
+  getItem: (key: string) =>
+    Promise.resolve(typeof window === 'undefined' ? null : window.localStorage.getItem(key)),
+  setItem: (key: string, value: string) => {
+    if (typeof window !== 'undefined') window.localStorage.setItem(key, value);
+    return Promise.resolve();
+  },
+  removeItem: (key: string) => {
+    if (typeof window !== 'undefined') window.localStorage.removeItem(key);
+    return Promise.resolve();
+  },
+};
+
+const authStorage = Platform.OS === 'web' ? webStorage : AsyncStorage;
 
 /**
  * Supabase connection details.
@@ -21,7 +44,7 @@ export const isSupabaseConfigured =
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storage: AsyncStorage,
+    storage: authStorage,
     autoRefreshToken: true,
     persistSession: true,
     // We're not using web URL-based auth callbacks in the app.

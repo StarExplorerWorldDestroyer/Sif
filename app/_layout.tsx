@@ -4,9 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
+import { WebFrame } from '@/components/ui/web-frame';
 import { Palette } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/store/auth';
 import { HaircutsProvider } from '@/store/haircuts';
+import { PostsProvider } from '@/store/posts';
+import { ProfileProvider } from '@/store/profile';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -51,6 +54,10 @@ function RootNavigator() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="haircut/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="add" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="profile/edit" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="settings" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="post/new" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
     </Stack>
   );
@@ -59,12 +66,18 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <HaircutsProvider>
-        <ThemeProvider value={AppTheme}>
-          <RootNavigator />
-          <StatusBar style="light" />
-        </ThemeProvider>
-      </HaircutsProvider>
+      <ProfileProvider>
+        <HaircutsProvider>
+          <PostsProvider>
+            <ThemeProvider value={AppTheme}>
+              <WebFrame>
+                <RootNavigator />
+              </WebFrame>
+              <StatusBar style="light" />
+            </ThemeProvider>
+          </PostsProvider>
+        </HaircutsProvider>
+      </ProfileProvider>
     </AuthProvider>
   );
 }

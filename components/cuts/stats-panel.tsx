@@ -4,7 +4,8 @@ import { Card } from '@/components/ui/card';
 import { Txt } from '@/components/ui/text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Palette, Spacing } from '@/constants/theme';
-import { formatCurrency, type Stats } from '@/lib/format';
+import { type Stats } from '@/lib/format';
+import { useMoney } from '@/hooks/use-money';
 
 function StatTile({
   label,
@@ -31,20 +32,21 @@ function StatTile({
 }
 
 export function StatsPanel({ stats }: { stats: Stats }) {
+  const money = useMoney();
   return (
     <Card style={styles.card}>
       <View style={styles.row}>
         <StatTile
           label="Total Spent"
-          value={formatCurrency(stats.totalSpent)}
+          value={money(stats.totalSpent)}
           trailing={<IconSymbol name="arrow.up.right" size={14} color={Palette.success} />}
         />
         <View style={styles.divider} />
-        <StatTile label="Average" value={formatCurrency(stats.average)} />
+        <StatTile label="Average" value={money(stats.average)} />
         <View style={styles.divider} />
         <StatTile
           label={`Tips (${Math.round(stats.tipPercent)}%)`}
-          value={formatCurrency(stats.totalTips)}
+          value={money(stats.totalTips)}
           accent
         />
       </View>

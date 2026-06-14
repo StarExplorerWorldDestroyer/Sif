@@ -25,6 +25,27 @@ export type Photo = {
   note: string;
 };
 
+export type Units = 'in' | 'cm';
+
+export type Post = {
+  id: string;
+  haircutId: string;
+  caption: string;
+  createdAt: string;
+};
+
+export type Profile = {
+  id: string;
+  username: string | null;
+  displayName: string;
+  bio: string;
+  avatarUrl: string;
+  currency: string;
+  units: Units;
+  profilePublic: boolean;
+  notificationsEnabled: boolean;
+};
+
 export type Stylist = {
   name: string;
   handle: string;

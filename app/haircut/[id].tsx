@@ -18,7 +18,8 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Pill } from '@/components/ui/pill';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
-import { formatCurrency, formatDate } from '@/lib/format';
+import { formatDate } from '@/lib/format';
+import { useMoney } from '@/hooks/use-money';
 import { useHaircuts } from '@/store/haircuts';
 import { angleLabel, type Photo } from '@/types';
 
@@ -26,6 +27,7 @@ export default function HaircutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { getById, toggleLike, toggleBookmark, deleteHaircut } = useHaircuts();
+  const money = useMoney();
 
   const haircut = getById(id);
 
@@ -127,17 +129,17 @@ export default function HaircutDetailScreen() {
             <Card style={{ marginTop: Spacing.sm }}>
               <View style={styles.priceRow}>
                 <Txt variant="label">Price</Txt>
-                <Txt variant="body">{formatCurrency(haircut.price)}</Txt>
+                <Txt variant="body">{money(haircut.price)}</Txt>
               </View>
               <View style={styles.priceRow}>
                 <Txt variant="label">Tip</Txt>
                 <Txt variant="body" color={Palette.accent}>
-                  {formatCurrency(haircut.tip)}
+                  {money(haircut.tip)}
                 </Txt>
               </View>
               <View style={[styles.priceRow, styles.priceTotal]}>
                 <Txt variant="label">Total</Txt>
-                <Txt variant="heading">{formatCurrency(haircut.price + haircut.tip)}</Txt>
+                <Txt variant="heading">{money(haircut.price + haircut.tip)}</Txt>
               </View>
             </Card>
           ) : null}

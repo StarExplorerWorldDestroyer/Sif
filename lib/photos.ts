@@ -40,3 +40,20 @@ export async function uploadPhoto(
 
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
+
+/** Upload a profile avatar and return its public URL (cache-busted). */
+export async function uploadAvatar(userId: string, localUri: string): Promise<string> {
+  const ext = (localUri.split('.').pop()?.split('?')[0] || 'jpg').toLowerCase();
+  const path = `${userId}/avatar.${ext}`;
+  const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+  const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
+  const { error } = await supabase.storage
+    .from('avatars')
+    .upload(path, decode(base64), { contentType, upsert: true });
+  if (error) throw error;
+
+  const url = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+  // Append a timestamp so the new image isn't served from cache.
+  return `${url}?v=${Date.now()}`;
+}

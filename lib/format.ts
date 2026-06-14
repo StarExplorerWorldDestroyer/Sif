@@ -1,10 +1,10 @@
 import type { Haircut } from '@/types';
 
-/** Format a number as US currency, e.g. 45 -> "$45". */
-export function formatCurrency(amount: number): string {
+/** Format a number as currency, e.g. 45 -> "$45". Currency defaults to USD. */
+export function formatCurrency(amount: number, currency: string = 'USD'): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);

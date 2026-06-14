@@ -100,6 +100,13 @@ export default function AddHaircutScreen() {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
+          <Txt variant="caption" style={styles.legend}>
+            <Txt variant="caption" color={Palette.accent}>
+              *
+            </Txt>{' '}
+            Required field
+          </Txt>
+
           <Txt variant="label" style={styles.sectionLabel}>
             Photos
           </Txt>
@@ -110,6 +117,7 @@ export default function AddHaircutScreen() {
             placeholder="e.g. Mid Skin Fade"
             value={cutType}
             onChangeText={setCutType}
+            required
           />
           <Field
             label="Salon / location"
@@ -220,6 +228,12 @@ export default function AddHaircutScreen() {
               </Txt>
             )}
           </Pressable>
+
+          {!cutType.trim() ? (
+            <Txt variant="caption" style={styles.saveHint}>
+              Add a cut type to save.
+            </Txt>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -241,7 +255,9 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: Spacing.xxl,
   },
+  legend: { marginBottom: Spacing.lg },
   sectionLabel: { marginBottom: Spacing.sm },
+  saveHint: { textAlign: 'center', marginTop: Spacing.sm },
   row: { flexDirection: 'row', gap: Spacing.md },
   half: { flex: 1 },
   third: { flex: 1 },

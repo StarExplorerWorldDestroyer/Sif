@@ -38,6 +38,9 @@ const MAPPING = {
   'xmark': 'close',
   'pencil': 'edit',
   'trash': 'delete',
+  'gearshape': 'settings',
+  'gearshape.fill': 'settings',
+  'checkmark': 'check',
 } as IconMapping;
 
 /**

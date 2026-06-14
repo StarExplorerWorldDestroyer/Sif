@@ -4,11 +4,13 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Txt } from '@/components/ui/text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Palette, Radius, Spacing } from '@/constants/theme';
-import { formatCurrency, formatDate } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 import { primaryPhotoUri } from '@/lib/photos';
+import { useMoney } from '@/hooks/use-money';
 import type { Haircut } from '@/types';
 
 export function HaircutCard({ haircut, onPress }: { haircut: Haircut; onPress?: () => void }) {
+  const money = useMoney();
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <Image source={{ uri: primaryPhotoUri(haircut) }} style={styles.thumb} contentFit="cover" />
@@ -34,9 +36,9 @@ export function HaircutCard({ haircut, onPress }: { haircut: Haircut; onPress?: 
       </View>
 
       <View style={styles.right}>
-        <Txt variant="body">{formatCurrency(haircut.price + haircut.tip)}</Txt>
+        <Txt variant="body">{money(haircut.price + haircut.tip)}</Txt>
         <Txt variant="caption" color={Palette.accent}>
-          +{formatCurrency(haircut.tip)} tip
+          +{money(haircut.tip)} tip
         </Txt>
         <Txt variant="caption">{formatDate(haircut.date)}</Txt>
         <IconSymbol name="chevron.right" size={14} color={Palette.textDim} />
