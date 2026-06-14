@@ -1,11 +1,10 @@
+import { decode } from 'base64-arraybuffer';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Platform } from 'react-native';
 
+import { supabase } from '@/lib/supabase';
 import type { Haircut } from '@/types';
 
-const PHOTO_DIR = `${FileSystem.documentDirectory ?? ''}photos/`;
-
-/** Fallback image when a haircut has no photos. */
+const BUCKET = 'haircut-photos';
 const PLACEHOLDER = 'https://picsum.photos/seed/seaf/400/400';
 
 /** The image shown as a haircut's thumbnail / hero. */
@@ -13,43 +12,31 @@ export function primaryPhotoUri(haircut: Haircut): string {
   return haircut.photos[0]?.uri ?? PLACEHOLDER;
 }
 
-async function ensureDir() {
-  const info = await FileSystem.getInfoAsync(PHOTO_DIR);
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(PHOTO_DIR, { intermediates: true });
-  }
+/** True if a URI already points at remote storage (no upload needed). */
+export function isRemote(uri: string): boolean {
+  return uri.startsWith('http');
 }
 
 /**
- * Copy a picked/captured photo into the app's permanent documents folder so it
- * survives even if the OS clears the temporary image-picker cache.
- *
- * Remote URLs and files already in our folder are returned unchanged. On web
- * (no FileSystem) the original URI is returned as-is.
+ * Upload a local photo file to Supabase Storage and return its public URL.
+ * Files are namespaced by user + haircut so the security rules can enforce
+ * that you only write to your own folder.
  */
-export async function persistPhoto(uri: string): Promise<string> {
-  if (Platform.OS === 'web' || !FileSystem.documentDirectory) return uri;
-  if (uri.startsWith('http')) return uri;
-  if (uri.startsWith(PHOTO_DIR)) return uri;
+export async function uploadPhoto(
+  userId: string,
+  haircutId: string,
+  photoId: string,
+  localUri: string,
+): Promise<string> {
+  const ext = (localUri.split('.').pop()?.split('?')[0] || 'jpg').toLowerCase();
+  const path = `${userId}/${haircutId}/${photoId}.${ext}`;
+  const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
 
-  try {
-    await ensureDir();
-    const ext = uri.split('.').pop()?.split('?')[0] || 'jpg';
-    const dest = `${PHOTO_DIR}${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    await FileSystem.copyAsync({ from: uri, to: dest });
-    return dest;
-  } catch {
-    // If copying fails for any reason, fall back to the original URI.
-    return uri;
-  }
-}
+  const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, decode(base64), { contentType, upsert: true });
+  if (error) throw error;
 
-/** Best-effort deletion of a photo file from permanent storage. */
-export async function deletePhotoFile(uri: string): Promise<void> {
-  if (Platform.OS === 'web' || !uri.startsWith(PHOTO_DIR)) return;
-  try {
-    await FileSystem.deleteAsync(uri, { idempotent: true });
-  } catch {
-    // ignore
-  }
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }

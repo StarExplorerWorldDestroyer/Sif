@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { HaircutCard } from '@/components/cuts/haircut-card';
 import { StatsPanel } from '@/components/cuts/stats-panel';
@@ -14,7 +14,7 @@ import { computeStats, filterByRange, type TimeRange } from '@/lib/format';
 
 export default function CutsScreen() {
   const router = useRouter();
-  const { haircuts } = useHaircuts();
+  const { haircuts, loading } = useHaircuts();
   const [range, setRange] = useState<TimeRange>('All');
 
   const filtered = useMemo(() => filterByRange(haircuts, range), [haircuts, range]);
@@ -47,7 +47,13 @@ export default function CutsScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Txt variant="label">No haircuts in this period.</Txt>
+            {loading ? (
+              <ActivityIndicator color={Palette.accent} />
+            ) : (
+              <Txt variant="label">
+                {range === 'All' ? 'No haircuts yet. Tap + to add one.' : 'No haircuts in this period.'}
+              </Txt>
+            )}
           </View>
         }
       />

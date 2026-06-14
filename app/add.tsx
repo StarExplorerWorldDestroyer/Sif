@@ -1,6 +1,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PhotoEditor } from '@/components/photos/photo-editor';
 import { Field } from '@/components/ui/field';
+import { TagInput } from '@/components/ui/tag-input';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useHaircuts } from '@/store/haircuts';
@@ -34,10 +37,16 @@ export default function AddHaircutScreen() {
   const [tip, setTip] = useState(editing ? String(editing.tip) : '');
   const [notes, setNotes] = useState(editing?.publicNotes ?? '');
   const [photos, setPhotos] = useState<Photo[]>(editing?.photos ?? []);
+  const [lengthTop, setLengthTop] = useState(editing?.lengthTop ?? '');
+  const [lengthSides, setLengthSides] = useState(editing?.lengthSides ?? '');
+  const [lengthBack, setLengthBack] = useState(editing?.lengthBack ?? '');
+  const [techniques, setTechniques] = useState<string[]>(editing?.techniques ?? []);
+  const [tools, setTools] = useState<string[]>(editing?.tools ?? []);
+  const [saving, setSaving] = useState(false);
 
-  const canSave = cutType.trim().length > 0;
+  const canSave = cutType.trim().length > 0 && !saving;
 
-  function handleSave() {
+  async function handleSave() {
     if (!canSave) return;
     const input = {
       cutType,
@@ -48,13 +57,24 @@ export default function AddHaircutScreen() {
       tip: Number(tip) || 0,
       notes,
       photos,
+      lengthTop,
+      lengthSides,
+      lengthBack,
+      techniques,
+      tools,
     };
-    if (editing) {
-      updateHaircut(editing.id, input);
-    } else {
-      addHaircut(input);
+    setSaving(true);
+    try {
+      if (editing) {
+        await updateHaircut(editing.id, input);
+      } else {
+        await addHaircut(input);
+      }
+      router.back();
+    } catch (e) {
+      setSaving(false);
+      Alert.alert('Could not save', 'Something went wrong saving your haircut. Please try again.');
     }
-    router.back();
   }
 
   return (
@@ -132,6 +152,52 @@ export default function AddHaircutScreen() {
             </View>
           </View>
 
+          <Txt variant="label" style={styles.sectionLabel}>
+            Specifications
+          </Txt>
+          <View style={styles.row}>
+            <View style={styles.third}>
+              <Field
+                label="Top"
+                placeholder="2 in"
+                value={lengthTop}
+                onChangeText={setLengthTop}
+                autoCapitalize="none"
+              />
+            </View>
+            <View style={styles.third}>
+              <Field
+                label="Sides"
+                placeholder="0.5 in"
+                value={lengthSides}
+                onChangeText={setLengthSides}
+                autoCapitalize="none"
+              />
+            </View>
+            <View style={styles.third}>
+              <Field
+                label="Back"
+                placeholder="0.5 in"
+                value={lengthBack}
+                onChangeText={setLengthBack}
+                autoCapitalize="none"
+              />
+            </View>
+          </View>
+
+          <TagInput
+            label="Techniques"
+            tags={techniques}
+            onChange={setTechniques}
+            placeholder="Type a technique, press return"
+          />
+          <TagInput
+            label="Tools"
+            tags={tools}
+            onChange={setTools}
+            placeholder="Type a tool, press return"
+          />
+
           <Field
             label="Notes"
             placeholder="Anything you want to remember…"
@@ -146,9 +212,13 @@ export default function AddHaircutScreen() {
             style={[styles.saveButton, !canSave && styles.saveButtonDisabled]}
             onPress={handleSave}
             disabled={!canSave}>
-            <Txt variant="body" color={Palette.black} style={styles.saveText}>
-              {editing ? 'Save Changes' : 'Save Haircut'}
-            </Txt>
+            {saving ? (
+              <ActivityIndicator color={Palette.black} />
+            ) : (
+              <Txt variant="body" color={Palette.black} style={styles.saveText}>
+                {editing ? 'Save Changes' : 'Save Haircut'}
+              </Txt>
+            )}
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -174,6 +244,7 @@ const styles = StyleSheet.create({
   sectionLabel: { marginBottom: Spacing.sm },
   row: { flexDirection: 'row', gap: Spacing.md },
   half: { flex: 1 },
+  third: { flex: 1 },
   notes: { minHeight: 100, textAlignVertical: 'top' },
   saveButton: {
     backgroundColor: Palette.accent,

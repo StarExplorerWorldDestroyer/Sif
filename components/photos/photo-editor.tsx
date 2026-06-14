@@ -12,7 +12,6 @@ import {
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { FontSize, Palette, Radius, Spacing } from '@/constants/theme';
-import { persistPhoto } from '@/lib/photos';
 import { PHOTO_ANGLES, type Photo, type PhotoAngle } from '@/types';
 
 function newId() {
@@ -38,11 +37,12 @@ export function PhotoEditor({
       quality: 0.8,
     });
     if (result.canceled) return;
-    const added: Photo[] = [];
-    for (const asset of result.assets) {
-      const uri = await persistPhoto(asset.uri);
-      added.push({ id: newId(), uri, angle: 'front', note: '' });
-    }
+    const added: Photo[] = result.assets.map((asset) => ({
+      id: newId(),
+      uri: asset.uri,
+      angle: 'front',
+      note: '',
+    }));
     onChange([...photos, ...added]);
   }
 
@@ -58,8 +58,7 @@ export function PhotoEditor({
       quality: 0.8,
     });
     if (result.canceled) return;
-    const uri = await persistPhoto(result.assets[0].uri);
-    onChange([...photos, { id: newId(), uri, angle: 'front', note: '' }]);
+    onChange([...photos, { id: newId(), uri: result.assets[0].uri, angle: 'front', note: '' }]);
   }
 
   function addPhotos() {
