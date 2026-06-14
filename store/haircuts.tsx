@@ -2,12 +2,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { MOCK_HAIRCUTS } from '@/data/haircuts';
-import type { Haircut, Stylist } from '@/types';
+import type { Haircut, Photo, Stylist } from '@/types';
 
 const STORAGE_KEY = 'haircuts.v1';
 
-/** The fields a user fills in when adding a haircut. Everything else gets sensible defaults. */
-export type NewHaircutInput = {
+/** The fields a user fills in when adding/editing a haircut. */
+export type HaircutFormInput = {
   cutType: string;
   location: string;
   stylistName: string;
@@ -15,14 +15,18 @@ export type NewHaircutInput = {
   price: number;
   tip: number;
   notes: string;
-  /** Local file URI of a chosen/captured photo. Falls back to a placeholder if absent. */
-  photoUri?: string;
+  /** Photos with permanent URIs, angle tags, and notes. */
+  photos: Photo[];
 };
 
 type HaircutsContextValue = {
   haircuts: Haircut[];
   loading: boolean;
-  addHaircut: (input: NewHaircutInput) => void;
+  addHaircut: (input: HaircutFormInput) => void;
+  updateHaircut: (id: string, input: HaircutFormInput) => void;
+  deleteHaircut: (id: string) => void;
+  toggleLike: (id: string) => void;
+  toggleBookmark: (id: string) => void;
   getById: (id: string) => Haircut | undefined;
 };
 
@@ -41,17 +45,29 @@ function makeStylist(name: string): Stylist {
   };
 }
 
+/**
+ * Make sure every loaded haircut matches the current shape. Older saved data
+ * used a single `photoUrl` string — convert it to a `photos` array.
+ */
+function normalize(raw: any): Haircut {
+  const photos: Photo[] = Array.isArray(raw.photos)
+    ? raw.photos
+    : raw.photoUrl
+      ? [{ id: `${raw.id}-0`, uri: raw.photoUrl, angle: 'front', note: '' }]
+      : [];
+  return { ...raw, photos };
+}
+
 export function HaircutsProvider({ children }: { children: ReactNode }) {
   const [haircuts, setHaircuts] = useState<Haircut[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load saved haircuts once on startup, seeding with mock data the first time.
   useEffect(() => {
     (async () => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (stored) {
-          setHaircuts(JSON.parse(stored));
+          setHaircuts((JSON.parse(stored) as any[]).map(normalize));
         } else {
           setHaircuts(MOCK_HAIRCUTS);
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_HAIRCUTS));
@@ -64,20 +80,19 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  // Persist whenever the list changes (after the initial load).
   useEffect(() => {
     if (!loading) {
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(haircuts)).catch(() => {});
     }
   }, [haircuts, loading]);
 
-  function addHaircut(input: NewHaircutInput) {
+  function addHaircut(input: HaircutFormInput) {
     const newHaircut: Haircut = {
       id: Date.now().toString(),
       date: input.date,
       cutType: input.cutType.trim() || 'Haircut',
       location: input.location.trim(),
-      photoUrl: input.photoUri || `https://picsum.photos/seed/${Date.now()}/400/400`,
+      photos: input.photos,
       price: input.price,
       tip: input.tip,
       likes: 0,
@@ -94,8 +109,48 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
       stylistNotes: '',
       stylist: makeStylist(input.stylistName),
     };
-    // Newest first.
     setHaircuts((prev) => [newHaircut, ...prev]);
+  }
+
+  function updateHaircut(id: string, input: HaircutFormInput) {
+    setHaircuts((prev) =>
+      prev.map((h) =>
+        h.id === id
+          ? {
+              ...h,
+              date: input.date,
+              cutType: input.cutType.trim() || 'Haircut',
+              location: input.location.trim(),
+              photos: input.photos,
+              price: input.price,
+              tip: input.tip,
+              publicNotes: input.notes.trim(),
+              // Keep the rest of the stylist details, just update the name.
+              stylist: { ...h.stylist, name: input.stylistName.trim() || h.stylist.name },
+            }
+          : h,
+      ),
+    );
+  }
+
+  function deleteHaircut(id: string) {
+    setHaircuts((prev) => prev.filter((h) => h.id !== id));
+  }
+
+  function toggleLike(id: string) {
+    setHaircuts((prev) =>
+      prev.map((h) =>
+        h.id === id
+          ? { ...h, liked: !h.liked, likes: h.likes + (h.liked ? -1 : 1) }
+          : h,
+      ),
+    );
+  }
+
+  function toggleBookmark(id: string) {
+    setHaircuts((prev) =>
+      prev.map((h) => (h.id === id ? { ...h, bookmarked: !h.bookmarked } : h)),
+    );
   }
 
   function getById(id: string) {
@@ -103,7 +158,17 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <HaircutsContext.Provider value={{ haircuts, loading, addHaircut, getById }}>
+    <HaircutsContext.Provider
+      value={{
+        haircuts,
+        loading,
+        addHaircut,
+        updateHaircut,
+        deleteHaircut,
+        toggleLike,
+        toggleBookmark,
+        getById,
+      }}>
       {children}
     </HaircutsContext.Provider>
   );

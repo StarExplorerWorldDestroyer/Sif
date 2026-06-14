@@ -1,7 +1,16 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Alert,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/ui/card';
@@ -9,20 +18,18 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Pill } from '@/components/ui/pill';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
-import { useHaircuts } from '@/store/haircuts';
 import { formatCurrency, formatDate } from '@/lib/format';
+import { useHaircuts } from '@/store/haircuts';
+import { angleLabel, type Photo } from '@/types';
 
 export default function HaircutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { getById } = useHaircuts();
+  const { getById, toggleLike, toggleBookmark, deleteHaircut } = useHaircuts();
 
   const haircut = getById(id);
 
-  // Local UI state. Private info always starts hidden for each haircut viewed.
-  const [liked, setLiked] = useState(haircut?.liked ?? false);
-  const [likeCount, setLikeCount] = useState(haircut?.likes ?? 0);
-  const [bookmarked, setBookmarked] = useState(haircut?.bookmarked ?? false);
+  // Private info always starts hidden for each haircut viewed.
   const [showPrivate, setShowPrivate] = useState(false);
 
   if (!haircut) {
@@ -38,31 +45,40 @@ export default function HaircutDetailScreen() {
 
   const { stylist } = haircut;
 
-  function toggleLike() {
-    setLiked((prev) => {
-      setLikeCount((c) => c + (prev ? -1 : 1));
-      return !prev;
-    });
+  function confirmDelete() {
+    Alert.alert('Delete haircut?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteHaircut(haircut!.id);
+          router.back();
+        },
+      },
+    ]);
   }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <Header onBack={() => router.back()} showShare />
+      <Header
+        onBack={() => router.back()}
+        onEdit={() => router.push({ pathname: '/add', params: { id: haircut.id } })}
+      />
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Photo */}
-        <Image source={{ uri: haircut.photoUrl }} style={styles.photo} contentFit="cover" />
+        <Gallery photos={haircut.photos} />
 
         {/* Social action bar */}
         <View style={styles.socialBar}>
-          <Pressable style={styles.socialItem} onPress={toggleLike} hitSlop={8}>
+          <Pressable style={styles.socialItem} onPress={() => toggleLike(haircut.id)} hitSlop={8}>
             <IconSymbol
-              name={liked ? 'heart.fill' : 'heart'}
+              name={haircut.liked ? 'heart.fill' : 'heart'}
               size={22}
-              color={liked ? Palette.accent : Palette.text}
+              color={haircut.liked ? Palette.accent : Palette.text}
             />
             <Txt variant="label" color={Palette.text}>
-              {likeCount}
+              {haircut.likes}
             </Txt>
           </Pressable>
 
@@ -75,11 +91,11 @@ export default function HaircutDetailScreen() {
 
           <View style={styles.spacer} />
 
-          <Pressable onPress={() => setBookmarked((b) => !b)} hitSlop={8}>
+          <Pressable onPress={() => toggleBookmark(haircut.id)} hitSlop={8}>
             <IconSymbol
-              name={bookmarked ? 'bookmark.fill' : 'bookmark'}
+              name={haircut.bookmarked ? 'bookmark.fill' : 'bookmark'}
               size={22}
-              color={bookmarked ? Palette.accent : Palette.text}
+              color={haircut.bookmarked ? Palette.accent : Palette.text}
             />
           </Pressable>
         </View>
@@ -101,11 +117,7 @@ export default function HaircutDetailScreen() {
         {/* Private info toggle */}
         <Section>
           <Pressable style={styles.privateToggle} onPress={() => setShowPrivate((p) => !p)}>
-            <IconSymbol
-              name={showPrivate ? 'eye' : 'eye.slash'}
-              size={18}
-              color={Palette.accent}
-            />
+            <IconSymbol name={showPrivate ? 'eye' : 'eye.slash'} size={18} color={Palette.accent} />
             <Txt variant="label" color={Palette.accent}>
               {showPrivate ? 'Hide private info' : 'Show private info'}
             </Txt>
@@ -148,18 +160,22 @@ export default function HaircutDetailScreen() {
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={styles.nameRow}>
                   <Txt variant="heading">{stylist.name}</Txt>
-                  <View style={styles.proBadge}>
-                    <Txt variant="caption" color={Palette.accent}>
-                      PRO
-                    </Txt>
+                  {stylist.verified ? (
+                    <View style={styles.proBadge}>
+                      <Txt variant="caption" color={Palette.accent}>
+                        PRO
+                      </Txt>
+                    </View>
+                  ) : null}
+                </View>
+                {stylist.handle ? <Txt variant="label">{stylist.handle}</Txt> : null}
+                {stylist.totalCuts > 0 ? (
+                  <View style={styles.statsRow}>
+                    <IconSymbol name="star.fill" size={12} color={Palette.accent} />
+                    <Txt variant="caption">{stylist.rating.toFixed(1)}</Txt>
+                    <Txt variant="caption">· {stylist.totalCuts.toLocaleString()} cuts</Txt>
                   </View>
-                </View>
-                <Txt variant="label">{stylist.handle}</Txt>
-                <View style={styles.statsRow}>
-                  <IconSymbol name="star.fill" size={12} color={Palette.accent} />
-                  <Txt variant="caption">{stylist.rating.toFixed(1)}</Txt>
-                  <Txt variant="caption">· {stylist.totalCuts.toLocaleString()} cuts</Txt>
-                </View>
+                ) : null}
               </View>
 
               <Pressable style={styles.bookButton}>
@@ -169,15 +185,19 @@ export default function HaircutDetailScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.tagRow}>
-              {stylist.specialties.map((s) => (
-                <Pill key={s} label={s} />
-              ))}
-            </View>
+            {stylist.specialties.length > 0 ? (
+              <View style={styles.tagRow}>
+                {stylist.specialties.map((s) => (
+                  <Pill key={s} label={s} />
+                ))}
+              </View>
+            ) : null}
 
-            <Txt variant="label" style={styles.bio}>
-              {stylist.bio}
-            </Txt>
+            {stylist.bio ? (
+              <Txt variant="label" style={styles.bio}>
+                {stylist.bio}
+              </Txt>
+            ) : null}
           </Card>
         </Section>
 
@@ -186,33 +206,37 @@ export default function HaircutDetailScreen() {
           <SectionTitle>Specifications</SectionTitle>
           <Card>
             <View style={styles.lengthGrid}>
-              <LengthCell label="Top" value={haircut.lengthTop} />
-              <LengthCell label="Sides" value={haircut.lengthSides} />
-              <LengthCell label="Back" value={haircut.lengthBack} />
+              <LengthCell label="Top" value={haircut.lengthTop || '—'} />
+              <LengthCell label="Sides" value={haircut.lengthSides || '—'} />
+              <LengthCell label="Back" value={haircut.lengthBack || '—'} />
             </View>
 
             <Txt variant="caption" style={styles.specLabel}>
               Techniques
             </Txt>
             <View style={styles.tagRow}>
-              {haircut.techniques.map((t) => (
-                <Pill key={t} label={t} />
-              ))}
+              {haircut.techniques.length > 0 ? (
+                haircut.techniques.map((t) => <Pill key={t} label={t} />)
+              ) : (
+                <Txt variant="label">—</Txt>
+              )}
             </View>
 
             <Txt variant="caption" style={styles.specLabel}>
               Tools
             </Txt>
             <View style={styles.tagRow}>
-              {haircut.tools.map((t) => (
-                <Pill key={t} label={t} />
-              ))}
+              {haircut.tools.length > 0 ? (
+                haircut.tools.map((t) => <Pill key={t} label={t} />)
+              ) : (
+                <Txt variant="label">—</Txt>
+              )}
             </View>
           </Card>
         </Section>
 
         {/* Notes */}
-        <Section style={{ marginBottom: Spacing.xxl }}>
+        <Section>
           <SectionTitle>Notes</SectionTitle>
           <Card>
             <Txt variant="label" color={Palette.textMuted}>
@@ -236,36 +260,106 @@ export default function HaircutDetailScreen() {
               </>
             ) : null}
 
-            <View style={styles.noteLabelRow}>
-              <Txt variant="label" color={Palette.textMuted}>
-                Stylist Notes
-              </Txt>
-              <View style={styles.proBadge}>
-                <Txt variant="caption" color={Palette.accent}>
-                  PRO
+            {haircut.stylistNotes ? (
+              <>
+                <View style={styles.noteLabelRow}>
+                  <Txt variant="label" color={Palette.textMuted}>
+                    Stylist Notes
+                  </Txt>
+                  <View style={styles.proBadge}>
+                    <Txt variant="caption" color={Palette.accent}>
+                      PRO
+                    </Txt>
+                  </View>
+                </View>
+                <Txt variant="body" style={styles.noteBody}>
+                  {haircut.stylistNotes}
                 </Txt>
-              </View>
-            </View>
-            <Txt variant="body" style={styles.noteBody}>
-              {haircut.stylistNotes || '—'}
-            </Txt>
+              </>
+            ) : null}
           </Card>
+        </Section>
+
+        {/* Delete */}
+        <Section style={{ marginBottom: Spacing.xxl }}>
+          <Pressable style={styles.deleteButton} onPress={confirmDelete}>
+            <IconSymbol name="trash" size={16} color={Palette.accent} />
+            <Txt variant="label" color={Palette.accent}>
+              Delete haircut
+            </Txt>
+          </Pressable>
         </Section>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Header({ onBack, showShare }: { onBack: () => void; showShare?: boolean }) {
+function Gallery({ photos }: { photos: Photo[] }) {
+  const { width } = useWindowDimensions();
+  const [index, setIndex] = useState(0);
+
+  if (photos.length === 0) {
+    return <View style={[styles.photo, { width, height: width }]} />;
+  }
+
+  function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
+  }
+
+  const current = photos[Math.min(index, photos.length - 1)];
+
+  return (
+    <View>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={onScroll}>
+        {photos.map((photo) => (
+          <View key={photo.id} style={{ width, height: width }}>
+            <Image source={{ uri: photo.uri }} style={styles.photo} contentFit="cover" />
+            <View style={styles.angleTag}>
+              <Txt variant="caption" color={Palette.text}>
+                {angleLabel(photo.angle)}
+              </Txt>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+
+      {photos.length > 1 ? (
+        <View style={styles.dots}>
+          {photos.map((p, i) => (
+            <View key={p.id} style={[styles.dot, i === index && styles.dotActive]} />
+          ))}
+        </View>
+      ) : null}
+
+      {current.note ? (
+        <Txt variant="label" style={styles.photoNote}>
+          {current.note}
+        </Txt>
+      ) : null}
+    </View>
+  );
+}
+
+function Header({
+  onBack,
+  onEdit,
+}: {
+  onBack: () => void;
+  onEdit?: () => void;
+}) {
   return (
     <View style={styles.header}>
       <Pressable onPress={onBack} hitSlop={8}>
         <IconSymbol name="chevron.left" size={26} color={Palette.text} />
       </Pressable>
       <Txt variant="heading">Haircut Details</Txt>
-      {showShare ? (
-        <Pressable hitSlop={8}>
-          <IconSymbol name="square.and.arrow.up" size={22} color={Palette.text} />
+      {onEdit ? (
+        <Pressable onPress={onEdit} hitSlop={8}>
+          <IconSymbol name="pencil" size={20} color={Palette.text} />
         </Pressable>
       ) : (
         <View style={{ width: 22 }} />
@@ -307,8 +401,35 @@ const styles = StyleSheet.create({
   },
   photo: {
     width: '100%',
-    aspectRatio: 1,
+    height: '100%',
     backgroundColor: Palette.surfaceAlt,
+  },
+  angleTag: {
+    position: 'absolute',
+    top: Spacing.md,
+    left: Spacing.md,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Radius.sm,
+  },
+  dots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingTop: Spacing.sm,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.surfaceAlt,
+  },
+  dotActive: { backgroundColor: Palette.accent },
+  photoNote: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    fontStyle: 'italic',
   },
   socialBar: {
     flexDirection: 'row',
@@ -373,4 +494,14 @@ const styles = StyleSheet.create({
   specLabel: { marginTop: Spacing.lg },
   noteBody: { marginTop: Spacing.xs, marginBottom: Spacing.md, lineHeight: 20 },
   noteLabelRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+  },
 });

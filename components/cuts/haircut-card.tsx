@@ -5,12 +5,13 @@ import { Txt } from '@/components/ui/text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { formatCurrency, formatDate } from '@/lib/format';
+import { primaryPhotoUri } from '@/lib/photos';
 import type { Haircut } from '@/types';
 
 export function HaircutCard({ haircut, onPress }: { haircut: Haircut; onPress?: () => void }) {
   return (
     <Pressable style={styles.card} onPress={onPress}>
-      <Image source={{ uri: haircut.photoUrl }} style={styles.thumb} contentFit="cover" />
+      <Image source={{ uri: primaryPhotoUri(haircut) }} style={styles.thumb} contentFit="cover" />
 
       <View style={styles.middle}>
         <Txt variant="heading" numberOfLines={1}>

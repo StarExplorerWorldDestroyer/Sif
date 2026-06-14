@@ -1,5 +1,30 @@
 /** Shared data types for the Haircuts app. */
 
+/** Camera angle a photo was taken from. `other` covers anything unlabeled. */
+export type PhotoAngle = 'front' | 'top' | 'left' | 'right' | 'back' | 'other';
+
+/** Human-readable labels and ordering for the angle tags. */
+export const PHOTO_ANGLES: { value: PhotoAngle; label: string }[] = [
+  { value: 'front', label: 'Front' },
+  { value: 'top', label: 'Top' },
+  { value: 'left', label: 'Left side' },
+  { value: 'right', label: 'Right side' },
+  { value: 'back', label: 'Back' },
+  { value: 'other', label: 'Other' },
+];
+
+export function angleLabel(angle: PhotoAngle): string {
+  return PHOTO_ANGLES.find((a) => a.value === angle)?.label ?? 'Other';
+}
+
+export type Photo = {
+  id: string;
+  /** File URI (permanent app storage) or remote URL. */
+  uri: string;
+  angle: PhotoAngle;
+  note: string;
+};
+
 export type Stylist = {
   name: string;
   handle: string;
@@ -17,7 +42,7 @@ export type Haircut = {
   date: string;
   cutType: string;
   location: string;
-  photoUrl: string;
+  photos: Photo[];
 
   // Pricing
   price: number; // base price

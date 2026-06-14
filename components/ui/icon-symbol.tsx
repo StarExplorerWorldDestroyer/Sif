@@ -35,6 +35,9 @@ const MAPPING = {
   'lock.fill': 'lock',
   'checkmark.seal.fill': 'verified',
   'star.fill': 'star',
+  'xmark': 'close',
+  'pencil': 'edit',
+  'trash': 'delete',
 } as IconMapping;
 
 /**

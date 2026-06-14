@@ -1,9 +1,6 @@
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,73 +10,36 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PhotoEditor } from '@/components/photos/photo-editor';
 import { Field } from '@/components/ui/field';
-import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useHaircuts } from '@/store/haircuts';
+import type { Photo } from '@/types';
 
 const today = new Date().toISOString().slice(0, 10);
 
 export default function AddHaircutScreen() {
   const router = useRouter();
-  const { addHaircut } = useHaircuts();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { addHaircut, updateHaircut, getById } = useHaircuts();
 
-  const [cutType, setCutType] = useState('');
-  const [location, setLocation] = useState('');
-  const [stylistName, setStylistName] = useState('');
-  const [date, setDate] = useState(today);
-  const [price, setPrice] = useState('');
-  const [tip, setTip] = useState('');
-  const [notes, setNotes] = useState('');
-  const [photoUri, setPhotoUri] = useState<string | undefined>();
+  const editing = getById(id ?? '');
+
+  const [cutType, setCutType] = useState(editing?.cutType ?? '');
+  const [location, setLocation] = useState(editing?.location ?? '');
+  const [stylistName, setStylistName] = useState(editing?.stylist.name ?? '');
+  const [date, setDate] = useState(editing?.date ?? today);
+  const [price, setPrice] = useState(editing ? String(editing.price) : '');
+  const [tip, setTip] = useState(editing ? String(editing.tip) : '');
+  const [notes, setNotes] = useState(editing?.publicNotes ?? '');
+  const [photos, setPhotos] = useState<Photo[]>(editing?.photos ?? []);
 
   const canSave = cutType.trim().length > 0;
 
-  async function pickFromLibrary() {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission needed', 'Please allow photo access to choose a photo.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      setPhotoUri(result.assets[0].uri);
-    }
-  }
-
-  async function takePhoto() {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission needed', 'Please allow camera access to take a photo.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      setPhotoUri(result.assets[0].uri);
-    }
-  }
-
-  function choosePhoto() {
-    Alert.alert('Add a photo', undefined, [
-      { text: 'Take Photo', onPress: takePhoto },
-      { text: 'Choose from Library', onPress: pickFromLibrary },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }
-
   function handleSave() {
     if (!canSave) return;
-    addHaircut({
+    const input = {
       cutType,
       location,
       stylistName,
@@ -87,8 +47,13 @@ export default function AddHaircutScreen() {
       price: Number(price) || 0,
       tip: Number(tip) || 0,
       notes,
-      photoUri,
-    });
+      photos,
+    };
+    if (editing) {
+      updateHaircut(editing.id, input);
+    } else {
+      addHaircut(input);
+    }
     router.back();
   }
 
@@ -100,7 +65,7 @@ export default function AddHaircutScreen() {
             Cancel
           </Txt>
         </Pressable>
-        <Txt variant="heading">Add Haircut</Txt>
+        <Txt variant="heading">{editing ? 'Edit Haircut' : 'Add Haircut'}</Txt>
         <Pressable onPress={handleSave} hitSlop={8} disabled={!canSave}>
           <Txt variant="body" color={canSave ? Palette.accent : Palette.textDim}>
             Save
@@ -115,23 +80,16 @@ export default function AddHaircutScreen() {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          <Pressable style={styles.photoPicker} onPress={choosePhoto}>
-            {photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.photo} contentFit="cover" />
-            ) : (
-              <View style={styles.photoPlaceholder}>
-                <IconSymbol name="plus" size={28} color={Palette.textMuted} />
-                <Txt variant="label">Add a photo</Txt>
-              </View>
-            )}
-          </Pressable>
+          <Txt variant="label" style={styles.sectionLabel}>
+            Photos
+          </Txt>
+          <PhotoEditor photos={photos} onChange={setPhotos} />
 
           <Field
             label="Cut type"
             placeholder="e.g. Mid Skin Fade"
             value={cutType}
             onChangeText={setCutType}
-            autoFocus
           />
           <Field
             label="Salon / location"
@@ -189,7 +147,7 @@ export default function AddHaircutScreen() {
             onPress={handleSave}
             disabled={!canSave}>
             <Txt variant="body" color={Palette.black} style={styles.saveText}>
-              Save Haircut
+              {editing ? 'Save Changes' : 'Save Haircut'}
             </Txt>
           </Pressable>
         </ScrollView>
@@ -213,23 +171,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: Spacing.xxl,
   },
-  photoPicker: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: Radius.lg,
-    overflow: 'hidden',
-    marginBottom: Spacing.lg,
-    backgroundColor: Palette.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Palette.border,
-  },
-  photo: { width: '100%', height: '100%' },
-  photoPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-  },
+  sectionLabel: { marginBottom: Spacing.sm },
   row: { flexDirection: 'row', gap: Spacing.md },
   half: { flex: 1 },
   notes: { minHeight: 100, textAlignVertical: 'top' },
