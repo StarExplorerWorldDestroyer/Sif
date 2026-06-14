@@ -2,17 +2,23 @@ import type { ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { Palette } from '@/constants/theme';
+import { useIsDesktop } from '@/hooks/use-responsive';
 
 /**
- * On web/desktop, constrains the app to a centered phone-width column so it
- * doesn't stretch edge-to-edge on large screens. On native this is a no-op.
+ * Web layout wrapper.
+ * - Narrow web (phones, small windows): center a phone-width column.
+ * - Desktop/laptop: a wide, centered app surface (the sidebar layout lives
+ *   inside, so this just caps the overall width on very large monitors).
+ * - Native: no-op.
  */
 export function WebFrame({ children }: { children: ReactNode }) {
+  const isDesktop = useIsDesktop();
+
   if (Platform.OS !== 'web') return <>{children}</>;
 
   return (
     <View style={styles.backdrop}>
-      <View style={styles.frame}>{children}</View>
+      <View style={[styles.frame, isDesktop ? styles.desktop : styles.phone]}>{children}</View>
     </View>
   );
 }
@@ -26,11 +32,18 @@ const styles = StyleSheet.create({
   frame: {
     flex: 1,
     width: '100%',
-    maxWidth: 480,
     backgroundColor: Palette.black,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderRightWidth: StyleSheet.hairlineWidth,
     borderColor: Palette.border,
     overflow: 'hidden',
+  },
+  phone: {
+    maxWidth: 480,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+  },
+  desktop: {
+    maxWidth: 1240,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
   },
 });

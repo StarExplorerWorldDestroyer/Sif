@@ -18,11 +18,13 @@ import { Field } from '@/components/ui/field';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
+import { useCenteredContent } from '@/hooks/use-responsive';
 import { useProfile } from '@/store/profile';
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { profile, updateProfile, uploadAndSetAvatar } = useProfile();
+  const centered = useCenteredContent(640);
 
   const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
   const [username, setUsername] = useState(profile?.username ?? '');
@@ -89,7 +91,7 @@ export default function EditProfileScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.content, centered]} keyboardShouldPersistTaps="handled">
           <Pressable style={styles.avatarWrap} onPress={changeAvatar}>
             {profile?.avatarUrl ? (
               <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} contentFit="cover" />

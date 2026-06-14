@@ -10,12 +10,14 @@ import { Screen } from '@/components/ui/screen';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useHaircuts } from '@/store/haircuts';
+import { useCenteredContent } from '@/hooks/use-responsive';
 import { computeStats, filterByRange, type TimeRange } from '@/lib/format';
 
 export default function CutsScreen() {
   const router = useRouter();
   const { haircuts, loading } = useHaircuts();
   const [range, setRange] = useState<TimeRange>('All');
+  const centered = useCenteredContent();
 
   const filtered = useMemo(() => filterByRange(haircuts, range), [haircuts, range]);
   const stats = useMemo(() => computeStats(filtered), [filtered]);
@@ -25,7 +27,7 @@ export default function CutsScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, centered]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View>

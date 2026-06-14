@@ -12,10 +12,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Field } from '@/components/ui/field';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
+import { useCenteredContent } from '@/hooks/use-responsive';
 import { useAuth } from '@/store/auth';
 
 export default function LoginScreen() {
   const { signIn, signUp, sendPasswordReset } = useAuth();
+  const centered = useCenteredContent(420);
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -68,7 +70,7 @@ export default function LoginScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.content}>
+        <View style={[styles.content, centered]}>
           <View style={styles.brand}>
             <Txt variant="display" color={Palette.accent}>
               Sif

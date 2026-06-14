@@ -9,6 +9,7 @@ import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/store/auth';
 import { useHaircuts } from '@/store/haircuts';
+import { useCenteredContent } from '@/hooks/use-responsive';
 import { useProfile } from '@/store/profile';
 
 export default function ProfileScreen() {
@@ -16,6 +17,7 @@ export default function ProfileScreen() {
   const { user } = useAuth();
   const { profile } = useProfile();
   const { haircuts } = useHaircuts();
+  const centered = useCenteredContent();
 
   const name = profile?.displayName?.trim() || user?.email?.split('@')[0] || 'You';
 
@@ -54,7 +56,7 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={centered ?? undefined}>
       <View style={styles.identity}>
         {profile?.avatarUrl ? (
           <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} contentFit="cover" />

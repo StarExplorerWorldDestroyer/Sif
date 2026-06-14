@@ -8,10 +8,13 @@ import { Screen } from '@/components/ui/screen';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { fetchPublicFeed } from '@/lib/public';
+import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
 import type { PublicPost } from '@/types';
 
 export default function ExploreScreen() {
   const router = useRouter();
+  const isDesktop = useIsDesktop();
+  const centered = useCenteredContent(1040);
   const [feed, setFeed] = useState<PublicPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,7 +38,7 @@ export default function ExploreScreen() {
         <Txt variant="title">Explore</Txt>
       </View>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, centered]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -63,31 +66,34 @@ export default function ExploreScreen() {
             </Txt>
           </View>
         ) : (
-          feed.map((post) => (
-            <Pressable
-              key={post.id}
-              style={styles.card}
-              onPress={() => router.push(`/p/${post.id}`)}>
-              <View style={styles.cardHeader}>
-                {post.author.avatarUrl ? (
-                  <Image source={{ uri: post.author.avatarUrl }} style={styles.avatar} contentFit="cover" />
-                ) : (
-                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                    <IconSymbol name="person.fill" size={14} color={Palette.textMuted} />
+          <View style={styles.grid}>
+            {feed.map((post) => (
+              <View
+                key={post.id}
+                style={[styles.cell, { width: isDesktop ? '33.333%' : '100%' }]}>
+                <Pressable style={styles.card} onPress={() => router.push(`/p/${post.id}`)}>
+                  <View style={styles.cardHeader}>
+                    {post.author.avatarUrl ? (
+                      <Image source={{ uri: post.author.avatarUrl }} style={styles.avatar} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                        <IconSymbol name="person.fill" size={14} color={Palette.textMuted} />
+                      </View>
+                    )}
+                    <Txt variant="label" color={Palette.text}>
+                      {post.author.username || post.author.displayName || 'Sif user'}
+                    </Txt>
                   </View>
-                )}
-                <Txt variant="label" color={Palette.text}>
-                  {post.author.username || post.author.displayName || 'Sif user'}
-                </Txt>
+                  <Image source={{ uri: post.photoUrl }} style={styles.photo} contentFit="cover" />
+                  {post.caption ? (
+                    <Txt variant="label" numberOfLines={2} style={styles.caption}>
+                      {post.caption}
+                    </Txt>
+                  ) : null}
+                </Pressable>
               </View>
-              <Image source={{ uri: post.photoUrl }} style={styles.photo} contentFit="cover" />
-              {post.caption ? (
-                <Txt variant="label" numberOfLines={2} style={styles.caption}>
-                  {post.caption}
-                </Txt>
-              ) : null}
-            </Pressable>
-          ))
+            ))}
+          </View>
         )}
       </ScrollView>
     </Screen>
@@ -100,12 +106,13 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', gap: Spacing.md, paddingVertical: Spacing.xxl * 2 },
   emptyTitle: { color: Palette.textMuted },
   emptyText: { textAlign: 'center', maxWidth: 280, color: Palette.textMuted },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  cell: { paddingHorizontal: Spacing.xs, marginBottom: Spacing.lg },
   card: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Palette.border,
-    marginBottom: Spacing.lg,
     overflow: 'hidden',
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },

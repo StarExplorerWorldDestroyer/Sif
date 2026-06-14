@@ -9,6 +9,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { primaryPhotoUri } from '@/lib/photos';
+import { useCenteredContent } from '@/hooks/use-responsive';
 import { useHaircuts } from '@/store/haircuts';
 import { usePosts } from '@/store/posts';
 
@@ -16,6 +17,7 @@ export default function NewPostScreen() {
   const router = useRouter();
   const { haircuts } = useHaircuts();
   const { createPost } = usePosts();
+  const centered = useCenteredContent(640);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
@@ -50,7 +52,7 @@ export default function NewPostScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.content, centered]} keyboardShouldPersistTaps="handled">
         <Field
           label="Caption"
           placeholder="Say something about this cut…"

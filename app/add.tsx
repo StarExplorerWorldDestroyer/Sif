@@ -17,6 +17,7 @@ import { Field } from '@/components/ui/field';
 import { TagInput } from '@/components/ui/tag-input';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
+import { useCenteredContent } from '@/hooks/use-responsive';
 import { useHaircuts } from '@/store/haircuts';
 import type { Photo } from '@/types';
 
@@ -26,6 +27,7 @@ export default function AddHaircutScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { addHaircut, updateHaircut, getById } = useHaircuts();
+  const centered = useCenteredContent(640);
 
   const editing = getById(id ?? '');
 
@@ -97,7 +99,7 @@ export default function AddHaircutScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, centered]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <Txt variant="caption" style={styles.legend}>

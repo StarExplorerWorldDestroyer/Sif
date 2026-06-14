@@ -8,6 +8,7 @@ import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/format';
 import { primaryPhotoUri } from '@/lib/photos';
+import { useCenteredContent } from '@/hooks/use-responsive';
 import { useAuth } from '@/store/auth';
 import { useHaircuts } from '@/store/haircuts';
 import { usePosts } from '@/store/posts';
@@ -20,6 +21,7 @@ export default function PostScreen() {
   const { getById: getHaircut } = useHaircuts();
   const { profile } = useProfile();
   const { user } = useAuth();
+  const centered = useCenteredContent(560);
 
   const post = getPost(id);
   const haircut = post ? getHaircut(post.haircutId) : undefined;
@@ -82,7 +84,7 @@ export default function PostScreen() {
         </View>
       </View>
 
-      <ScrollView>
+      <ScrollView contentContainerStyle={centered ?? undefined}>
         <View style={styles.authorRow}>
           {profile?.avatarUrl ? (
             <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} contentFit="cover" />

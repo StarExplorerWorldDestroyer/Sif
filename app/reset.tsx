@@ -6,11 +6,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Field } from '@/components/ui/field';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
+import { useCenteredContent } from '@/hooks/use-responsive';
 import { useAuth } from '@/store/auth';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
   const { updatePassword, signOut } = useAuth();
+  const centered = useCenteredContent(420);
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -37,7 +39,7 @@ export default function ResetPasswordScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.content}>
+        <View style={[styles.content, centered]}>
           <View style={styles.brand}>
             <Txt variant="title">Set a new password</Txt>
             <Txt variant="label">Enter a new password for your account.</Txt>

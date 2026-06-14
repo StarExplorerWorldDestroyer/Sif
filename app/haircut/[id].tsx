@@ -20,6 +20,7 @@ import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/format';
 import { useMoney } from '@/hooks/use-money';
+import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
 import { useHaircuts } from '@/store/haircuts';
 import { angleLabel, type Photo } from '@/types';
 
@@ -28,6 +29,7 @@ export default function HaircutDetailScreen() {
   const router = useRouter();
   const { getById, toggleLike, toggleBookmark, deleteHaircut } = useHaircuts();
   const money = useMoney();
+  const centered = useCenteredContent(640);
 
   const haircut = getById(id);
 
@@ -68,7 +70,7 @@ export default function HaircutDetailScreen() {
         onEdit={() => router.push({ pathname: '/add', params: { id: haircut.id } })}
       />
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={centered ?? undefined}>
         <Gallery photos={haircut.photos} />
 
         {/* Social action bar */}
@@ -298,27 +300,31 @@ export default function HaircutDetailScreen() {
 
 function Gallery({ photos }: { photos: Photo[] }) {
   const { width } = useWindowDimensions();
+  const isDesktop = useIsDesktop();
   const [index, setIndex] = useState(0);
 
+  // Cap the photo size on desktop so it doesn't fill a huge window.
+  const size = isDesktop ? 460 : width;
+
   if (photos.length === 0) {
-    return <View style={[styles.photo, { width, height: width }]} />;
+    return <View style={[styles.photo, { width: size, height: size, alignSelf: 'center' }]} />;
   }
 
   function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
-    setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
+    setIndex(Math.round(e.nativeEvent.contentOffset.x / size));
   }
 
   const current = photos[Math.min(index, photos.length - 1)];
 
   return (
-    <View>
+    <View style={{ width: size, alignSelf: 'center' }}>
       <ScrollView
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={onScroll}>
         {photos.map((photo) => (
-          <View key={photo.id} style={{ width, height: width }}>
+          <View key={photo.id} style={{ width: size, height: size }}>
             <Image source={{ uri: photo.uri }} style={styles.photo} contentFit="cover" />
             <View style={styles.angleTag}>
               <Txt variant="caption" color={Palette.text}>

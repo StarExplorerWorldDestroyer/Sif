@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Txt } from '@/components/ui/text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Palette, Radius, Spacing } from '@/constants/theme';
+import { useCenteredContent } from '@/hooks/use-responsive';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
 import { useProfile } from '@/store/profile';
@@ -17,6 +18,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user, signOut, sendPasswordReset } = useAuth();
   const { profile, updateProfile } = useProfile();
+  const centered = useCenteredContent(640);
 
   const [busy, setBusy] = useState(false);
 
@@ -64,7 +66,7 @@ export default function SettingsScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, centered]} showsVerticalScrollIndicator={false}>
         <SectionTitle>Preferences</SectionTitle>
 
         <View style={styles.card}>

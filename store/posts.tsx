@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
+import { primaryPhotoUri } from '@/lib/photos';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
+import { useHaircuts } from '@/store/haircuts';
 import type { Post } from '@/types';
 
 type PostsContextValue = {
@@ -32,6 +34,7 @@ function rowToPost(row: any): Post {
 
 export function PostsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { haircuts } = useHaircuts();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,6 +56,27 @@ export function PostsProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     refetch();
   }, [refetch]);
+
+  // Self-heal: older posts created before the photo/cut-type snapshot existed
+  // have empty values. Backfill them from the owner's haircut data so they
+  // render on the public feed and profile pages.
+  useEffect(() => {
+    const stale = posts.filter((p) => !p.photoUrl || !p.cutType);
+    if (stale.length === 0 || haircuts.length === 0) return;
+    (async () => {
+      let changed = false;
+      for (const post of stale) {
+        const haircut = haircuts.find((h) => h.id === post.haircutId);
+        if (!haircut) continue;
+        await supabase
+          .from('posts')
+          .update({ photo_url: primaryPhotoUri(haircut), cut_type: haircut.cutType })
+          .eq('id', post.id);
+        changed = true;
+      }
+      if (changed) refetch();
+    })();
+  }, [posts, haircuts, refetch]);
 
   async function createPost(
     haircutId: string,

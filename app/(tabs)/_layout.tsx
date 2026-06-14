@@ -1,15 +1,22 @@
+import { BottomTabBar } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
 import React from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Sidebar } from '@/components/ui/sidebar';
 import { Palette } from '@/constants/theme';
+import { useIsDesktop } from '@/hooks/use-responsive';
 
 export default function TabLayout() {
+  const isDesktop = useIsDesktop();
+
   return (
     <Tabs
+      tabBar={(props) => (isDesktop ? <Sidebar {...props} /> : <BottomTabBar {...props} />)}
       screenOptions={{
         headerShown: false,
+        tabBarPosition: isDesktop ? 'left' : 'bottom',
         tabBarButton: HapticTab,
         tabBarActiveTintColor: Palette.accent,
         tabBarInactiveTintColor: Palette.textMuted,

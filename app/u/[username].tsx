@@ -8,11 +8,13 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { fetchPostsForUser, fetchPublicProfile } from '@/lib/public';
+import { useCenteredContent } from '@/hooks/use-responsive';
 import type { PublicPost, PublicProfile } from '@/types';
 
 export default function PublicProfileScreen() {
   const router = useRouter();
   const { username } = useLocalSearchParams<{ username: string }>();
+  const centered = useCenteredContent(680);
 
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [posts, setPosts] = useState<PublicPost[]>([]);
@@ -63,7 +65,7 @@ export default function PublicProfileScreen() {
           </Txt>
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={centered ?? undefined}>
           <View style={styles.identity}>
             {profile.avatarUrl ? (
               <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} contentFit="cover" />

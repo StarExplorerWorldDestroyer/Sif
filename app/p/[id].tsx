@@ -9,11 +9,13 @@ import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/format';
 import { fetchPublicPost } from '@/lib/public';
+import { useCenteredContent } from '@/hooks/use-responsive';
 import type { PublicPost } from '@/types';
 
 export default function PublicPostScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const centered = useCenteredContent(560);
 
   const [post, setPost] = useState<PublicPost | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,7 +60,7 @@ export default function PublicPostScreen() {
           </Txt>
         </View>
       ) : (
-        <ScrollView>
+        <ScrollView contentContainerStyle={centered ?? undefined}>
           <Pressable
             style={styles.authorRow}
             onPress={() =>
