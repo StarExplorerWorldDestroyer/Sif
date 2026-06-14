@@ -1,4 +1,4 @@
--- Seaf database schema
+-- Sif database schema
 -- Paste this into the Supabase SQL Editor (https://supabase.com → your project → SQL Editor)
 -- and click "Run". Safe to re-run.
 

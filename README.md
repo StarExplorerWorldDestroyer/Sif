@@ -1,4 +1,4 @@
-# Seaf — Haircut Tracker
+# Sif — Haircut Tracker
 
 A mobile-first app to log, organize, and reference your haircut history — tracking
 expenses, styling preferences, stylists, and (eventually) social features. Built with

@@ -1,4 +1,4 @@
--- Seaf profiles + preferences
+-- Sif profiles + preferences
 -- Paste into the Supabase SQL Editor and Run. Safe to re-run.
 
 create table if not exists public.profiles (
