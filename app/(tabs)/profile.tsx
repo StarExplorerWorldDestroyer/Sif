@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
 import { PostsGrid } from '@/components/profile/posts-grid';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -18,6 +18,32 @@ export default function ProfileScreen() {
   const { haircuts } = useHaircuts();
 
   const name = profile?.displayName?.trim() || user?.email?.split('@')[0] || 'You';
+
+  const origin =
+    Platform.OS === 'web' && typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://goldensif.com';
+
+  async function shareProfile() {
+    if (!profile?.username) {
+      Alert.alert('Set a username first', 'Add a username in Edit Profile so people can find you.');
+      return;
+    }
+    if (!profile.profilePublic) {
+      Alert.alert(
+        'Your profile is private',
+        'Turn on “Public profile” in Settings so others can view your shared link.',
+      );
+      return;
+    }
+    const url = `${origin}/u/${profile.username}`;
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+      Alert.alert('Link copied', url);
+    } else {
+      await Share.share({ message: url, url });
+    }
+  }
 
   return (
     <Screen>
@@ -52,11 +78,19 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <Pressable style={styles.editButton} onPress={() => router.push('/profile/edit')}>
-          <Txt variant="label" color={Palette.text}>
-            Edit Profile
-          </Txt>
-        </Pressable>
+        <View style={styles.actionRow}>
+          <Pressable style={styles.actionButton} onPress={() => router.push('/profile/edit')}>
+            <Txt variant="label" color={Palette.text}>
+              Edit Profile
+            </Txt>
+          </Pressable>
+          <Pressable style={styles.actionButton} onPress={shareProfile}>
+            <IconSymbol name="square.and.arrow.up" size={16} color={Palette.text} />
+            <Txt variant="label" color={Palette.text}>
+              Share
+            </Txt>
+          </Pressable>
+        </View>
       </View>
 
         <View style={styles.highlights}>
@@ -82,8 +116,11 @@ const styles = StyleSheet.create({
   bio: { textAlign: 'center', maxWidth: 280, marginTop: Spacing.xs },
   statsRow: { flexDirection: 'row', gap: Spacing.xl, marginTop: Spacing.md },
   stat: { alignItems: 'center' },
-  editButton: {
-    marginTop: Spacing.lg,
+  actionRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.xl,
     borderRadius: Radius.pill,

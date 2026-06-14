@@ -32,6 +32,29 @@ export type Post = {
   haircutId: string;
   caption: string;
   createdAt: string;
+  /** Snapshot of the haircut's primary photo at post time (safe to show publicly). */
+  photoUrl: string;
+  /** Snapshot of the haircut's cut type at post time. */
+  cutType: string;
+};
+
+/** A public-facing profile shown on shareable pages (no private fields). */
+export type PublicProfile = {
+  id: string;
+  username: string | null;
+  displayName: string;
+  bio: string;
+  avatarUrl: string;
+};
+
+/** A public post shown on shareable pages, joined with its author. */
+export type PublicPost = {
+  id: string;
+  caption: string;
+  photoUrl: string;
+  cutType: string;
+  createdAt: string;
+  author: PublicProfile;
 };
 
 export type Profile = {

@@ -15,12 +15,13 @@ import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/store/auth';
 
 export default function LoginScreen() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, sendPasswordReset } = useAuth();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const canSubmit = email.includes('@') && password.length >= 6;
@@ -29,11 +30,37 @@ export default function LoginScreen() {
     if (!canSubmit || busy) return;
     setBusy(true);
     setError(null);
-    const fn = mode === 'signin' ? signIn : signUp;
-    const { error } = await fn(email, password);
+    setInfo(null);
+    if (mode === 'signin') {
+      const { error } = await signIn(email, password);
+      if (error) setError(error);
+      // On success, the auth listener redirects us automatically.
+    } else {
+      const { error, needsConfirmation } = await signUp(email, password);
+      if (error) {
+        setError(error);
+      } else if (needsConfirmation) {
+        setMode('signin');
+        setInfo('Check your email to confirm your account, then log in.');
+      }
+      // If confirmation isn't required, the auth listener logs us in.
+    }
+    setBusy(false);
+  }
+
+  async function forgotPassword() {
+    if (busy) return;
+    setError(null);
+    setInfo(null);
+    if (!email.includes('@')) {
+      setError('Enter your email above first, then tap “Forgot password?”.');
+      return;
+    }
+    setBusy(true);
+    const { error } = await sendPasswordReset(email);
     setBusy(false);
     if (error) setError(error);
-    // On success, the auth listener redirects us automatically.
+    else setInfo(`We sent a password reset link to ${email}.`);
   }
 
   return (
@@ -44,7 +71,7 @@ export default function LoginScreen() {
         <View style={styles.content}>
           <View style={styles.brand}>
             <Txt variant="display" color={Palette.accent}>
-              Haircuts
+              Sif
             </Txt>
             <Txt variant="label">
               {mode === 'signin' ? 'Welcome back.' : 'Create your account.'}
@@ -74,6 +101,11 @@ export default function LoginScreen() {
               {error}
             </Txt>
           ) : null}
+          {info ? (
+            <Txt variant="label" color={Palette.success} style={styles.error}>
+              {info}
+            </Txt>
+          ) : null}
 
           <Pressable
             style={[styles.button, !canSubmit && styles.buttonDisabled]}
@@ -88,11 +120,18 @@ export default function LoginScreen() {
             )}
           </Pressable>
 
+          {mode === 'signin' ? (
+            <Pressable style={styles.forgot} onPress={forgotPassword} disabled={busy}>
+              <Txt variant="label">Forgot password?</Txt>
+            </Pressable>
+          ) : null}
+
           <Pressable
             style={styles.switch}
             onPress={() => {
               setMode((m) => (m === 'signin' ? 'signup' : 'signin'));
               setError(null);
+              setInfo(null);
             }}>
             <Txt variant="label">
               {mode === 'signin'
@@ -121,5 +160,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.4 },
   buttonText: { fontWeight: '600' },
+  forgot: { alignItems: 'center', marginTop: Spacing.lg },
   switch: { alignItems: 'center', marginTop: Spacing.xl },
 });

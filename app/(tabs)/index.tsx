@@ -30,7 +30,7 @@ export default function CutsScreen() {
         ListHeaderComponent={
           <View>
             <View style={styles.header}>
-              <Txt variant="title">Haircuts</Txt>
+              <Txt variant="title">Sif</Txt>
               <Pressable
                 style={styles.addButton}
                 hitSlop={8}

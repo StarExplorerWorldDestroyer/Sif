@@ -39,8 +39,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Haircuts to access your photos so you can add haircut pictures.",
-          "cameraPermission": "Allow Haircuts to use your camera so you can take haircut pictures."
+          "photosPermission": "Allow Sif to access your photos so you can add haircut pictures.",
+          "cameraPermission": "Allow Sif to use your camera so you can take haircut pictures."
         }
       ]
     ],

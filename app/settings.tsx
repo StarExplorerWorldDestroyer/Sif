@@ -15,7 +15,7 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY'];
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, signOut, sendPasswordReset } = useAuth();
   const { profile, updateProfile } = useProfile();
 
   const [busy, setBusy] = useState(false);
@@ -26,11 +26,11 @@ export default function SettingsScreen() {
   async function changePassword() {
     if (!user?.email) return;
     setBusy(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(user.email);
+    const { error } = await sendPasswordReset(user.email);
     setBusy(false);
     Alert.alert(
       error ? 'Error' : 'Check your email',
-      error ? error.message : `We sent a password reset link to ${user.email}.`,
+      error ? error : `We sent a password reset link to ${user.email}. Open it to set a new password.`,
     );
   }
 

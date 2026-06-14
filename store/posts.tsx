@@ -7,7 +7,11 @@ import type { Post } from '@/types';
 type PostsContextValue = {
   posts: Post[];
   loading: boolean;
-  createPost: (haircutId: string, caption: string) => Promise<void>;
+  createPost: (
+    haircutId: string,
+    caption: string,
+    snapshot: { photoUrl: string; cutType: string },
+  ) => Promise<void>;
   updatePost: (id: string, caption: string) => Promise<void>;
   deletePost: (id: string) => Promise<void>;
   getById: (id: string) => Post | undefined;
@@ -21,6 +25,8 @@ function rowToPost(row: any): Post {
     haircutId: row.haircut_id,
     caption: row.caption ?? '',
     createdAt: row.created_at,
+    photoUrl: row.photo_url ?? '',
+    cutType: row.cut_type ?? '',
   };
 }
 
@@ -48,8 +54,17 @@ export function PostsProvider({ children }: { children: ReactNode }) {
     refetch();
   }, [refetch]);
 
-  async function createPost(haircutId: string, caption: string) {
-    await supabase.from('posts').insert({ haircut_id: haircutId, caption: caption.trim() });
+  async function createPost(
+    haircutId: string,
+    caption: string,
+    snapshot: { photoUrl: string; cutType: string },
+  ) {
+    await supabase.from('posts').insert({
+      haircut_id: haircutId,
+      caption: caption.trim(),
+      photo_url: snapshot.photoUrl,
+      cut_type: snapshot.cutType,
+    });
     await refetch();
   }
 

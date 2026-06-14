@@ -47,7 +47,20 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     storage: authStorage,
     autoRefreshToken: true,
     persistSession: true,
-    // We're not using web URL-based auth callbacks in the app.
-    detectSessionInUrl: false,
+    // On web, parse auth tokens from the URL (email confirmation + password
+    // reset links redirect back here with tokens in the URL hash).
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });
+
+/**
+ * Where Supabase auth emails (confirmation, password reset) should redirect.
+ * On web this is the current site origin; on native it's the app's deep-link
+ * scheme. Configure these as allowed Redirect URLs in the Supabase dashboard.
+ */
+export function authRedirectTo(path = ''): string {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return `${window.location.origin}${path}`;
+  }
+  return `sif://${path.replace(/^\//, '')}`;
+}

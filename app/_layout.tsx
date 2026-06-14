@@ -31,19 +31,26 @@ const AppTheme = {
 
 /** Redirects between the login screen and the app based on auth state. */
 function useAuthRedirect() {
-  const { user, loading } = useAuth();
+  const { user, loading, recovering } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (loading) return;
+    // A user who clicked a password-reset link must set a new password first.
+    if (recovering) {
+      if (segments[0] !== 'reset') router.replace('/reset');
+      return;
+    }
     const onLoginScreen = segments[0] === 'login';
-    if (!user && !onLoginScreen) {
+    // Public, shareable routes that don't require being signed in.
+    const onPublicRoute = segments[0] === 'u' || segments[0] === 'p';
+    if (!user && !onLoginScreen && !onPublicRoute) {
       router.replace('/login');
     } else if (user && onLoginScreen) {
       router.replace('/');
     }
-  }, [user, loading, segments, router]);
+  }, [user, loading, recovering, segments, router]);
 }
 
 function RootNavigator() {
@@ -58,6 +65,9 @@ function RootNavigator() {
       <Stack.Screen name="settings" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="post/new" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="u/[username]" options={{ headerShown: false }} />
+      <Stack.Screen name="p/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="reset" options={{ headerShown: false }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
     </Stack>
   );

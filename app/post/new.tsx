@@ -26,7 +26,11 @@ export default function NewPostScreen() {
   async function handlePost() {
     if (!canPost) return;
     setSaving(true);
-    await createPost(selected!, caption);
+    const haircut = haircuts.find((h) => h.id === selected);
+    await createPost(selected!, caption, {
+      photoUrl: haircut ? primaryPhotoUri(haircut) : '',
+      cutType: haircut?.cutType ?? '',
+    });
     router.back();
   }
 
