@@ -8,7 +8,7 @@ import { Field } from '@/components/ui/field';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
-import { primaryPhotoUri } from '@/lib/photos';
+import { hasPhoto, primaryPhotoUri } from '@/lib/photos';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useHaircuts } from '@/store/haircuts';
 import { usePosts } from '@/store/posts';
@@ -19,19 +19,22 @@ export default function NewPostScreen() {
   const { createPost } = usePosts();
   const centered = useCenteredContent(640);
 
+  // Posts always feature the haircut's photo, so only photo'd cuts are postable.
+  const postable = haircuts.filter(hasPhoto);
+
   const [selected, setSelected] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const canPost = !!selected && !saving;
+  const selectedHaircut = postable.find((h) => h.id === selected);
+  const canPost = !!selectedHaircut && !saving;
 
   async function handlePost() {
-    if (!canPost) return;
+    if (!canPost || !selectedHaircut) return;
     setSaving(true);
-    const haircut = haircuts.find((h) => h.id === selected);
-    await createPost(selected!, caption, {
-      photoUrl: haircut ? primaryPhotoUri(haircut) : '',
-      cutType: haircut?.cutType ?? '',
+    await createPost(selectedHaircut.id, caption, {
+      photoUrl: primaryPhotoUri(selectedHaircut),
+      cutType: selectedHaircut.cutType,
     });
     router.back();
   }
@@ -65,11 +68,15 @@ export default function NewPostScreen() {
           Pick a haircut to post
         </Txt>
 
-        {haircuts.length === 0 ? (
-          <Txt variant="label">Save a haircut first, then you can post it here.</Txt>
+        {postable.length === 0 ? (
+          <Txt variant="label">
+            {haircuts.length === 0
+              ? 'Save a haircut first, then you can post it here.'
+              : 'Add a photo to one of your haircuts — posts always show the photo.'}
+          </Txt>
         ) : (
           <View style={styles.grid}>
-            {haircuts.map((h) => {
+            {postable.map((h) => {
               const isSelected = selected === h.id;
               return (
                 <Pressable

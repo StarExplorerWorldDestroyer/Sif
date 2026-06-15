@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import {
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -62,6 +63,12 @@ export function PhotoEditor({
   }
 
   function addPhotos() {
+    // On web, Alert.alert with action buttons doesn't render, so the picker
+    // would never open. Go straight to the file/library picker there.
+    if (Platform.OS === 'web') {
+      addFromLibrary();
+      return;
+    }
     Alert.alert('Add photos', undefined, [
       { text: 'Take Photo', onPress: addFromCamera },
       { text: 'Choose from Library', onPress: addFromLibrary },

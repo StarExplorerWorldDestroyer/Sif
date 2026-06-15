@@ -11,6 +11,7 @@ type IconName = Parameters<typeof IconSymbol>[0]['name'];
 const NAV: Record<string, { label: string; icon: IconName }> = {
   index: { label: 'Cuts', icon: 'scissors' },
   explore: { label: 'Explore', icon: 'safari' },
+  discover: { label: 'Discover', icon: 'sparkles' },
   profile: { label: 'Profile', icon: 'person.fill' },
 };
 

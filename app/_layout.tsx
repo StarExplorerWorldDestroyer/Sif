@@ -60,6 +60,7 @@ function RootNavigator() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="haircut/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="discover/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="add" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="profile/edit" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="settings" options={{ presentation: 'modal', headerShown: false }} />

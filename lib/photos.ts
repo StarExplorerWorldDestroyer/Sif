@@ -1,20 +1,44 @@
 import { decode } from 'base64-arraybuffer';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
 import type { Haircut } from '@/types';
 
 const BUCKET = 'haircut-photos';
-const PLACEHOLDER = 'https://picsum.photos/seed/seaf/400/400';
 
-/** The image shown as a haircut's thumbnail / hero. */
+/** True if a haircut has at least one usable photo. */
+export function hasPhoto(haircut: Haircut): boolean {
+  return haircut.photos.length > 0 && !!haircut.photos[0]?.uri;
+}
+
+/** The image shown as a haircut's thumbnail / hero, or '' if none. */
 export function primaryPhotoUri(haircut: Haircut): string {
-  return haircut.photos[0]?.uri ?? PLACEHOLDER;
+  return haircut.photos[0]?.uri ?? '';
 }
 
 /** True if a URI already points at remote storage (no upload needed). */
 export function isRemote(uri: string): boolean {
   return uri.startsWith('http');
+}
+
+/**
+ * Read a locally-picked image into something Supabase Storage can upload.
+ * - Web: ImagePicker returns a blob:/data: URL, which FileSystem can't read,
+ *   so we fetch it into a Blob and upload that.
+ * - Native: read the file as base64 and decode to an ArrayBuffer.
+ */
+async function readImageBody(
+  localUri: string,
+  fallbackContentType: string,
+): Promise<{ body: Blob | ArrayBuffer; contentType: string }> {
+  if (Platform.OS === 'web') {
+    const res = await fetch(localUri);
+    const blob = await res.blob();
+    return { body: blob, contentType: blob.type || fallbackContentType };
+  }
+  const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
+  return { body: decode(base64), contentType: fallbackContentType };
 }
 
 /**
@@ -30,12 +54,14 @@ export async function uploadPhoto(
 ): Promise<string> {
   const ext = (localUri.split('.').pop()?.split('?')[0] || 'jpg').toLowerCase();
   const path = `${userId}/${haircutId}/${photoId}.${ext}`;
-  const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+  const { body, contentType } = await readImageBody(
+    localUri,
+    ext === 'png' ? 'image/png' : 'image/jpeg',
+  );
 
-  const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(path, decode(base64), { contentType, upsert: true });
+    .upload(path, body, { contentType, upsert: true });
   if (error) throw error;
 
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
@@ -45,12 +71,14 @@ export async function uploadPhoto(
 export async function uploadAvatar(userId: string, localUri: string): Promise<string> {
   const ext = (localUri.split('.').pop()?.split('?')[0] || 'jpg').toLowerCase();
   const path = `${userId}/avatar.${ext}`;
-  const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
+  const { body, contentType } = await readImageBody(
+    localUri,
+    ext === 'png' ? 'image/png' : 'image/jpeg',
+  );
 
-  const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
   const { error } = await supabase.storage
     .from('avatars')
-    .upload(path, decode(base64), { contentType, upsert: true });
+    .upload(path, body, { contentType, upsert: true });
   if (error) throw error;
 
   const url = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;

@@ -41,6 +41,8 @@ const MAPPING = {
   'gearshape': 'settings',
   'gearshape.fill': 'settings',
   'checkmark': 'check',
+  'sparkles': 'auto-awesome',
+  'line.3.horizontal.decrease': 'filter-list',
 } as IconMapping;
 
 /**
