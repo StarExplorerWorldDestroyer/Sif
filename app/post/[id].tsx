@@ -13,6 +13,7 @@ import { useAuth } from '@/store/auth';
 import { useHaircuts } from '@/store/haircuts';
 import { usePosts } from '@/store/posts';
 import { useProfile } from '@/store/profile';
+import { POST_VISIBILITY_OPTIONS } from '@/types';
 
 export default function PostScreen() {
   const router = useRouter();
@@ -114,6 +115,27 @@ export default function PostScreen() {
             </Txt>
           ) : null}
 
+          <View>
+            <Txt variant="caption" style={{ marginBottom: Spacing.sm }}>
+              Who can see this
+            </Txt>
+            <View style={styles.visRow}>
+              {POST_VISIBILITY_OPTIONS.map((opt) => {
+                const active = post.visibility === opt.value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => updatePost(post.id, post.caption, opt.value)}
+                    style={[styles.visPill, active && styles.visPillActive]}>
+                    <Txt variant="caption" color={active ? Palette.black : Palette.textMuted}>
+                      {opt.label}
+                    </Txt>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
           <Pressable
             style={styles.detailLink}
             onPress={() => router.push(`/haircut/${haircut.id}`)}>
@@ -156,6 +178,14 @@ const styles = StyleSheet.create({
   body: { padding: Spacing.lg, gap: Spacing.md },
   actions: { flexDirection: 'row', gap: Spacing.lg },
   caption: { lineHeight: 22 },
+  visRow: { flexDirection: 'row', gap: Spacing.sm },
+  visPill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.surfaceAlt,
+  },
+  visPillActive: { backgroundColor: Palette.accent },
   detailLink: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   date: { marginTop: Spacing.xs },
 });

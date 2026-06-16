@@ -3,7 +3,12 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { supabase } from '@/lib/supabase';
 import { isRemote, uploadPhoto } from '@/lib/photos';
 import { useAuth } from '@/store/auth';
-import type { Haircut, Photo, Stylist } from '@/types';
+import type { Haircut, HaircutUpdate, Photo, Stylist } from '@/types';
+
+/** Lightweight unique id for storage file names. */
+function newId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 /** The fields a user fills in when adding/editing a haircut. */
 export type HaircutFormInput = {
@@ -24,14 +29,27 @@ export type HaircutFormInput = {
 
 type HaircutsContextValue = {
   haircuts: Haircut[];
+  /** Cuts a stylist submitted to you, awaiting your acceptance. */
+  pending: Haircut[];
   loading: boolean;
   refetch: () => Promise<void>;
   addHaircut: (input: HaircutFormInput) => Promise<void>;
+  /** Stylist: submit a cut to a connected client's account (lands as pending). */
+  createForClient: (clientId: string, input: HaircutFormInput) => Promise<void>;
+  acceptPending: (id: string) => Promise<void>;
+  rejectPending: (id: string) => Promise<void>;
   updateHaircut: (id: string, input: HaircutFormInput) => Promise<void>;
   deleteHaircut: (id: string) => Promise<void>;
   toggleLike: (id: string) => void;
   toggleBookmark: (id: string) => void;
   getById: (id: string) => Haircut | undefined;
+  // Follow-up timeline (grow-out updates) for a haircut.
+  fetchUpdates: (haircutId: string) => Promise<HaircutUpdate[]>;
+  addUpdate: (
+    haircutId: string,
+    update: { uri: string; note: string; takenOn: string },
+  ) => Promise<void>;
+  deleteUpdate: (id: string) => Promise<void>;
 };
 
 const HaircutsContext = createContext<HaircutsContextValue | null>(null);
@@ -79,6 +97,8 @@ function rowToHaircut(row: any): Haircut {
     privateNotes: row.private_notes,
     stylistNotes: row.stylist_notes,
     stylist,
+    status: row.status ?? 'active',
+    createdBy: row.created_by ?? row.user_id,
   };
 }
 
@@ -100,14 +120,27 @@ function inputToRow(input: HaircutFormInput) {
   };
 }
 
+function rowToUpdate(row: any): HaircutUpdate {
+  return {
+    id: row.id,
+    haircutId: row.haircut_id,
+    uri: row.uri,
+    note: row.note ?? '',
+    takenOn: row.taken_on,
+    createdAt: row.created_at,
+  };
+}
+
 export function HaircutsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [haircuts, setHaircuts] = useState<Haircut[]>([]);
+  const [pending, setPending] = useState<Haircut[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refetch = useCallback(async () => {
     if (!user) {
       setHaircuts([]);
+      setPending([]);
       setLoading(false);
       return;
     }
@@ -116,7 +149,13 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
       .select('*, photos(*)')
       .order('date', { ascending: false });
     if (!error && data) {
-      setHaircuts(data.map(rowToHaircut));
+      // Only your own, accepted cuts belong in the main list. Pending cuts
+      // (submitted by a stylist) and cuts you created for clients are excluded.
+      const mine = data.filter((r: any) => r.user_id === user.id && (r.status ?? 'active') === 'active');
+      setHaircuts(mine.map(rowToHaircut));
+      // Pending cuts addressed to you (submitted by a stylist for your account).
+      const incoming = data.filter((r: any) => r.user_id === user.id && r.status === 'pending');
+      setPending(incoming.map(rowToHaircut));
     }
     setLoading(false);
   }, [user]);
@@ -153,6 +192,63 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
       await supabase.from('photos').insert(photoRows);
     }
     await refetch();
+  }
+
+  async function createForClient(clientId: string, input: HaircutFormInput) {
+    if (!user) return;
+    // user_id = the client; created_by defaults to the stylist (auth.uid());
+    // status 'pending' so it lands in the client's inbox for acceptance.
+    const { data, error } = await supabase
+      .from('haircuts')
+      .insert({ ...inputToRow(input), user_id: clientId, status: 'pending' })
+      .select()
+      .single();
+    if (error || !data) throw error ?? new Error('Failed to submit cut');
+
+    const photoRows = await preparePhotoRows(data.id, input.photos);
+    if (photoRows.length > 0) {
+      await supabase.from('photos').insert(photoRows);
+    }
+  }
+
+  async function acceptPending(id: string) {
+    setPending((prev) => prev.filter((h) => h.id !== id));
+    await supabase.from('haircuts').update({ status: 'active' }).eq('id', id);
+    await refetch();
+  }
+
+  async function rejectPending(id: string) {
+    setPending((prev) => prev.filter((h) => h.id !== id));
+    await supabase.from('haircuts').delete().eq('id', id);
+  }
+
+  async function fetchUpdates(haircutId: string): Promise<HaircutUpdate[]> {
+    const { data } = await supabase
+      .from('haircut_updates')
+      .select('*')
+      .eq('haircut_id', haircutId)
+      .order('taken_on', { ascending: true });
+    return (data ?? []).map(rowToUpdate);
+  }
+
+  async function addUpdate(
+    haircutId: string,
+    update: { uri: string; note: string; takenOn: string },
+  ) {
+    if (!user) return;
+    const uri = isRemote(update.uri)
+      ? update.uri
+      : await uploadPhoto(user.id, haircutId, `update-${newId()}`, update.uri);
+    await supabase.from('haircut_updates').insert({
+      haircut_id: haircutId,
+      uri,
+      note: update.note.trim(),
+      taken_on: update.takenOn,
+    });
+  }
+
+  async function deleteUpdate(id: string) {
+    await supabase.from('haircut_updates').delete().eq('id', id);
   }
 
   async function updateHaircut(id: string, input: HaircutFormInput) {
@@ -199,14 +295,21 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
     <HaircutsContext.Provider
       value={{
         haircuts,
+        pending,
         loading,
         refetch,
         addHaircut,
+        createForClient,
+        acceptPending,
+        rejectPending,
         updateHaircut,
         deleteHaircut,
         toggleLike,
         toggleBookmark,
         getById,
+        fetchUpdates,
+        addUpdate,
+        deleteUpdate,
       }}>
       {children}
     </HaircutsContext.Provider>

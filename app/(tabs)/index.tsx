@@ -15,7 +15,7 @@ import { computeStats, filterByRange, type TimeRange } from '@/lib/format';
 
 export default function CutsScreen() {
   const router = useRouter();
-  const { haircuts, loading } = useHaircuts();
+  const { haircuts, pending, loading } = useHaircuts();
   const [range, setRange] = useState<TimeRange>('All');
   const centered = useCenteredContent();
 
@@ -40,6 +40,18 @@ export default function CutsScreen() {
                 <IconSymbol name="plus" size={22} color={Palette.black} />
               </Pressable>
             </View>
+            {pending.length > 0 ? (
+              <Pressable style={styles.pendingBanner} onPress={() => router.push('/pending')}>
+                <IconSymbol name="scissors" size={18} color={Palette.accent} />
+                <View style={{ flex: 1 }}>
+                  <Txt variant="label" color={Palette.text}>
+                    {pending.length} cut{pending.length > 1 ? 's' : ''} from your stylist
+                  </Txt>
+                  <Txt variant="caption">Tap to review and add to your history.</Txt>
+                </View>
+                <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+              </Pressable>
+            ) : null}
             <StatsPanel stats={stats} />
             <TimeFilter value={range} onChange={setRange} />
           </View>
@@ -82,6 +94,17 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.accent,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    borderRadius: Radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.accent,
+    backgroundColor: Palette.accentSoft,
   },
   empty: {
     alignItems: 'center',

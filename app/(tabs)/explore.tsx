@@ -1,15 +1,15 @@
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Screen } from '@/components/ui/screen';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
-import { fetchPublicFeed } from '@/lib/public';
+import { fetchPublicFeed, searchUsers } from '@/lib/public';
 import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
-import type { PublicPost } from '@/types';
+import type { PublicPost, UserSearchResult } from '@/types';
 
 export default function ExploreScreen() {
   const router = useRouter();
@@ -18,6 +18,11 @@ export default function ExploreScreen() {
   const [feed, setFeed] = useState<PublicPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<UserSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchActive = query.trim().length >= 2;
 
   const load = useCallback(async () => {
     const posts = await fetchPublicFeed();
@@ -32,11 +37,102 @@ export default function ExploreScreen() {
     }, [load]),
   );
 
+  // Debounced user search.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      const found = await searchUsers(q);
+      setResults(found);
+      setSearching(false);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  function openUser(u: UserSearchResult) {
+    if (u.username) router.push(`/u/${u.username}`);
+  }
+
   return (
     <Screen padded={false}>
       <View style={styles.header}>
         <Txt variant="title">Explore</Txt>
       </View>
+
+      <View style={styles.searchWrap}>
+        <View style={styles.searchBox}>
+          <IconSymbol name="person.fill" size={16} color={Palette.textMuted} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search people by name or @username"
+            placeholderTextColor={Palette.textDim}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.searchInput}
+          />
+          {query.length > 0 ? (
+            <Pressable onPress={() => setQuery('')} hitSlop={8}>
+              <IconSymbol name="xmark" size={16} color={Palette.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      {searchActive ? (
+        <ScrollView
+          contentContainerStyle={[styles.content, centered]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
+          {searching ? (
+            <View style={styles.center}>
+              <ActivityIndicator color={Palette.accent} />
+            </View>
+          ) : results.length === 0 ? (
+            <Txt variant="label" style={styles.emptyText}>
+              No people found for “{query.trim()}”.
+            </Txt>
+          ) : (
+            results.map((u) => (
+              <Pressable key={u.id} style={styles.userRow} onPress={() => openUser(u)}>
+                {u.avatarUrl ? (
+                  <Image source={{ uri: u.avatarUrl }} style={styles.userAvatar} contentFit="cover" />
+                ) : (
+                  <View style={[styles.userAvatar, styles.avatarPlaceholder]}>
+                    <IconSymbol name="person.fill" size={18} color={Palette.textMuted} />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <View style={styles.nameRow}>
+                    <Txt variant="body" numberOfLines={1}>
+                      {u.displayName || u.username || 'Sif user'}
+                    </Txt>
+                    {u.isStylist ? (
+                      <View style={styles.stylistBadge}>
+                        <Txt variant="caption" color={Palette.black}>
+                          Stylist
+                        </Txt>
+                      </View>
+                    ) : null}
+                  </View>
+                  {u.username ? (
+                    <Txt variant="caption" color={Palette.textMuted}>
+                      @{u.username}
+                      {u.privacy !== 'public' ? ' · private' : ''}
+                    </Txt>
+                  ) : null}
+                </View>
+                <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+              </Pressable>
+            ))
+          )}
+        </ScrollView>
+      ) : (
       <ScrollView
         contentContainerStyle={[styles.content, centered]}
         showsVerticalScrollIndicator={false}
@@ -96,12 +192,42 @@ export default function ExploreScreen() {
           </View>
         )}
       </ScrollView>
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.lg },
+  header: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.sm },
+  searchWrap: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  searchInput: { flex: 1, color: Palette.text, fontSize: 15, paddingVertical: 2 },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Palette.border,
+  },
+  userAvatar: { width: 44, height: 44, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  stylistBadge: {
+    backgroundColor: Palette.accent,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 1,
+  },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxl },
   center: { alignItems: 'center', justifyContent: 'center', gap: Spacing.md, paddingVertical: Spacing.xxl * 2 },
   emptyTitle: { color: Palette.textMuted },

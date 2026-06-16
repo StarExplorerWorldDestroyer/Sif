@@ -4,7 +4,7 @@ import { primaryPhotoUri } from '@/lib/photos';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
 import { useHaircuts } from '@/store/haircuts';
-import type { Post } from '@/types';
+import type { Post, PostVisibility } from '@/types';
 
 type PostsContextValue = {
   posts: Post[];
@@ -13,8 +13,9 @@ type PostsContextValue = {
     haircutId: string,
     caption: string,
     snapshot: { photoUrl: string; cutType: string },
+    visibility?: PostVisibility,
   ) => Promise<void>;
-  updatePost: (id: string, caption: string) => Promise<void>;
+  updatePost: (id: string, caption: string, visibility?: PostVisibility) => Promise<void>;
   deletePost: (id: string) => Promise<void>;
   getById: (id: string) => Post | undefined;
 };
@@ -29,6 +30,7 @@ function rowToPost(row: any): Post {
     createdAt: row.created_at,
     photoUrl: row.photo_url ?? '',
     cutType: row.cut_type ?? '',
+    visibility: (row.visibility as PostVisibility) ?? 'public',
   };
 }
 
@@ -47,6 +49,7 @@ export function PostsProvider({ children }: { children: ReactNode }) {
     const { data } = await supabase
       .from('posts')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     if (data) setPosts(data.map(rowToPost));
     setLoading(false);
@@ -82,18 +85,22 @@ export function PostsProvider({ children }: { children: ReactNode }) {
     haircutId: string,
     caption: string,
     snapshot: { photoUrl: string; cutType: string },
+    visibility: PostVisibility = 'public',
   ) {
     await supabase.from('posts').insert({
       haircut_id: haircutId,
       caption: caption.trim(),
       photo_url: snapshot.photoUrl,
       cut_type: snapshot.cutType,
+      visibility,
     });
     await refetch();
   }
 
-  async function updatePost(id: string, caption: string) {
-    await supabase.from('posts').update({ caption: caption.trim() }).eq('id', id);
+  async function updatePost(id: string, caption: string, visibility?: PostVisibility) {
+    const patch: Record<string, unknown> = { caption: caption.trim() };
+    if (visibility !== undefined) patch.visibility = visibility;
+    await supabase.from('posts').update(patch).eq('id', id);
     await refetch();
   }
 

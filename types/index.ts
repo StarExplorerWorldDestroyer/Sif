@@ -25,7 +25,36 @@ export type Photo = {
   note: string;
 };
 
+/** A follow-up entry on a haircut: tracks how it grew out / aged over time. */
+export type HaircutUpdate = {
+  id: string;
+  haircutId: string;
+  uri: string;
+  note: string;
+  /** ISO date the photo was taken. */
+  takenOn: string;
+  createdAt: string;
+};
+
 export type Units = 'in' | 'cm';
+
+/** Who can view something. */
+export type Privacy = 'public' | 'connections' | 'private';
+
+/** Per-post visibility ('private' means only the owner). */
+export type PostVisibility = 'public' | 'connections' | 'private';
+
+export const PRIVACY_OPTIONS: { value: Privacy; label: string; hint: string }[] = [
+  { value: 'public', label: 'Public', hint: 'Anyone can find and view your profile.' },
+  { value: 'connections', label: 'Connections', hint: 'Only people you’ve connected with.' },
+  { value: 'private', label: 'Private', hint: 'Hidden from everyone but you.' },
+];
+
+export const POST_VISIBILITY_OPTIONS: { value: PostVisibility; label: string }[] = [
+  { value: 'public', label: 'Public' },
+  { value: 'connections', label: 'Connections' },
+  { value: 'private', label: 'Only me' },
+];
 
 export type Post = {
   id: string;
@@ -36,6 +65,7 @@ export type Post = {
   photoUrl: string;
   /** Snapshot of the haircut's cut type at post time. */
   cutType: string;
+  visibility: PostVisibility;
 };
 
 /** A public-facing profile shown on shareable pages (no private fields). */
@@ -45,7 +75,26 @@ export type PublicProfile = {
   displayName: string;
   bio: string;
   avatarUrl: string;
+  privacy?: Privacy;
+  isStylist?: boolean;
 };
+
+/** Minimal, privacy-safe profile card used in search results and gated views. */
+export type UserSearchResult = {
+  id: string;
+  username: string | null;
+  displayName: string;
+  avatarUrl: string;
+  privacy: Privacy;
+  isStylist: boolean;
+};
+
+/** Your relationship to another user, from your point of view. */
+export type ConnectionStatus =
+  | 'none'
+  | 'pending_outgoing'
+  | 'pending_incoming'
+  | 'connected';
 
 /** A public post shown on shareable pages, joined with its author. */
 export type PublicPost = {
@@ -65,7 +114,10 @@ export type Profile = {
   avatarUrl: string;
   currency: string;
   units: Units;
+  /** @deprecated kept in sync with `privacy === 'public'` for compatibility. */
   profilePublic: boolean;
+  privacy: Privacy;
+  isStylist: boolean;
   notificationsEnabled: boolean;
 };
 
@@ -111,4 +163,9 @@ export type Haircut = {
   stylistNotes: string;
 
   stylist: Stylist;
+
+  /** 'active' = a normal saved cut; 'pending' = submitted by a stylist, awaiting your acceptance. */
+  status: 'active' | 'pending';
+  /** User id of whoever entered this cut (you, or a stylist who created it for you). */
+  createdBy: string;
 };

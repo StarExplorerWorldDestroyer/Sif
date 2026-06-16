@@ -11,12 +11,14 @@ import { useAuth } from '@/store/auth';
 import { useHaircuts } from '@/store/haircuts';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useProfile } from '@/store/profile';
+import { useSocial } from '@/store/social';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { profile } = useProfile();
   const { haircuts } = useHaircuts();
+  const { connectionCount, incomingCount } = useSocial();
   const centered = useCenteredContent();
 
   const name = profile?.displayName?.trim() || user?.email?.split('@')[0] || 'You';
@@ -31,10 +33,10 @@ export default function ProfileScreen() {
       Alert.alert('Set a username first', 'Add a username in Edit Profile so people can find you.');
       return;
     }
-    if (!profile.profilePublic) {
+    if (profile.privacy !== 'public') {
       Alert.alert(
-        'Your profile is private',
-        'Turn on “Public profile” in Settings so others can view your shared link.',
+        'Your profile isn’t public',
+        'Set your profile to Public in Settings so anyone with the link can view it.',
       );
       return;
     }
@@ -78,6 +80,13 @@ export default function ProfileScreen() {
             <Txt variant="heading">{haircuts.length}</Txt>
             <Txt variant="caption">Cuts</Txt>
           </View>
+          <Pressable style={styles.stat} onPress={() => router.push('/connections')}>
+            <View style={styles.statCountRow}>
+              <Txt variant="heading">{connectionCount}</Txt>
+              {incomingCount > 0 ? <View style={styles.badge} /> : null}
+            </View>
+            <Txt variant="caption">Connections</Txt>
+          </Pressable>
         </View>
 
         <View style={styles.actionRow}>
@@ -118,6 +127,8 @@ const styles = StyleSheet.create({
   bio: { textAlign: 'center', maxWidth: 280, marginTop: Spacing.xs },
   statsRow: { flexDirection: 'row', gap: Spacing.xl, marginTop: Spacing.md },
   stat: { alignItems: 'center' },
+  statCountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
+  badge: { width: 8, height: 8, borderRadius: 4, backgroundColor: Palette.accent, marginTop: 4 },
   actionRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg },
   actionButton: {
     flexDirection: 'row',

@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from '@/store/auth';
 import { HaircutsProvider } from '@/store/haircuts';
 import { PostsProvider } from '@/store/posts';
 import { ProfileProvider } from '@/store/profile';
+import { SocialProvider } from '@/store/social';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -64,6 +65,8 @@ function RootNavigator() {
       <Stack.Screen name="add" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="profile/edit" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="settings" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="connections" options={{ headerShown: false }} />
+      <Stack.Screen name="pending" options={{ headerShown: false }} />
       <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="post/new" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="u/[username]" options={{ headerShown: false }} />
@@ -78,16 +81,18 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <ProfileProvider>
-        <HaircutsProvider>
-          <PostsProvider>
-            <ThemeProvider value={AppTheme}>
-              <WebFrame>
-                <RootNavigator />
-              </WebFrame>
-              <StatusBar style="light" />
-            </ThemeProvider>
-          </PostsProvider>
-        </HaircutsProvider>
+        <SocialProvider>
+          <HaircutsProvider>
+            <PostsProvider>
+              <ThemeProvider value={AppTheme}>
+                <WebFrame>
+                  <RootNavigator />
+                </WebFrame>
+                <StatusBar style="light" />
+              </ThemeProvider>
+            </PostsProvider>
+          </HaircutsProvider>
+        </SocialProvider>
       </ProfileProvider>
     </AuthProvider>
   );

@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { uploadAvatar } from '@/lib/photos';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
-import type { Profile, Units } from '@/types';
+import type { Privacy, Profile, Units } from '@/types';
 
 export type ProfilePatch = Partial<{
   username: string | null;
@@ -12,7 +12,8 @@ export type ProfilePatch = Partial<{
   avatarUrl: string;
   currency: string;
   units: Units;
-  profilePublic: boolean;
+  privacy: Privacy;
+  isStylist: boolean;
   notificationsEnabled: boolean;
 }>;
 
@@ -35,6 +36,8 @@ function rowToProfile(row: any): Profile {
     currency: row.currency ?? 'USD',
     units: (row.units as Units) ?? 'in',
     profilePublic: row.profile_public ?? false,
+    privacy: (row.privacy as Privacy) ?? (row.profile_public ? 'public' : 'private'),
+    isStylist: row.is_stylist ?? false,
     notificationsEnabled: row.notifications_enabled ?? true,
   };
 }
@@ -47,7 +50,12 @@ function patchToRow(patch: ProfilePatch) {
   if (patch.avatarUrl !== undefined) row.avatar_url = patch.avatarUrl;
   if (patch.currency !== undefined) row.currency = patch.currency;
   if (patch.units !== undefined) row.units = patch.units;
-  if (patch.profilePublic !== undefined) row.profile_public = patch.profilePublic;
+  if (patch.privacy !== undefined) {
+    row.privacy = patch.privacy;
+    // Keep the legacy boolean in sync so older public-page logic still works.
+    row.profile_public = patch.privacy === 'public';
+  }
+  if (patch.isStylist !== undefined) row.is_stylist = patch.isStylist;
   if (patch.notificationsEnabled !== undefined)
     row.notifications_enabled = patch.notificationsEnabled;
   return row;

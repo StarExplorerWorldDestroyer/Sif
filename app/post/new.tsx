@@ -12,6 +12,7 @@ import { hasPhoto, primaryPhotoUri } from '@/lib/photos';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useHaircuts } from '@/store/haircuts';
 import { usePosts } from '@/store/posts';
+import { POST_VISIBILITY_OPTIONS, type PostVisibility } from '@/types';
 
 export default function NewPostScreen() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function NewPostScreen() {
 
   const [selected, setSelected] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
+  const [visibility, setVisibility] = useState<PostVisibility>('public');
   const [saving, setSaving] = useState(false);
 
   const selectedHaircut = postable.find((h) => h.id === selected);
@@ -32,10 +34,15 @@ export default function NewPostScreen() {
   async function handlePost() {
     if (!canPost || !selectedHaircut) return;
     setSaving(true);
-    await createPost(selectedHaircut.id, caption, {
-      photoUrl: primaryPhotoUri(selectedHaircut),
-      cutType: selectedHaircut.cutType,
-    });
+    await createPost(
+      selectedHaircut.id,
+      caption,
+      {
+        photoUrl: primaryPhotoUri(selectedHaircut),
+        cutType: selectedHaircut.cutType,
+      },
+      visibility,
+    );
     router.back();
   }
 
@@ -63,6 +70,25 @@ export default function NewPostScreen() {
           onChangeText={setCaption}
           multiline
         />
+
+        <Txt variant="label" style={styles.pickLabel}>
+          Who can see this
+        </Txt>
+        <View style={styles.visRow}>
+          {POST_VISIBILITY_OPTIONS.map((opt) => {
+            const active = visibility === opt.value;
+            return (
+              <Pressable
+                key={opt.value}
+                onPress={() => setVisibility(opt.value)}
+                style={[styles.visPill, active && styles.visPillActive]}>
+                <Txt variant="caption" color={active ? Palette.black : Palette.textMuted}>
+                  {opt.label}
+                </Txt>
+              </Pressable>
+            );
+          })}
+        </View>
 
         <Txt variant="label" style={styles.pickLabel}>
           Pick a haircut to post
@@ -117,7 +143,15 @@ const styles = StyleSheet.create({
     borderBottomColor: Palette.border,
   },
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
-  pickLabel: { marginBottom: Spacing.md },
+  pickLabel: { marginBottom: Spacing.md, marginTop: Spacing.lg },
+  visRow: { flexDirection: 'row', gap: Spacing.sm },
+  visPill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.surfaceAlt,
+  },
+  visPillActive: { backgroundColor: Palette.accent },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: '33.333%', aspectRatio: 1, padding: 1 },
   thumb: { flex: 1, borderRadius: Radius.sm, backgroundColor: Palette.surfaceAlt },

@@ -4,19 +4,25 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RelationshipButtons } from '@/components/social/relationship-buttons';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
-import { fetchPostsForUser, fetchPublicProfile } from '@/lib/public';
+import { fetchPostsForUser, fetchProfileView } from '@/lib/public';
 import { useCenteredContent } from '@/hooks/use-responsive';
-import type { PublicPost, PublicProfile } from '@/types';
+import { useProfile } from '@/store/profile';
+import { useSocial } from '@/store/social';
+import type { PublicPost, PublicProfile, UserSearchResult } from '@/types';
 
 export default function PublicProfileScreen() {
   const router = useRouter();
   const { username } = useLocalSearchParams<{ username: string }>();
   const centered = useCenteredContent(680);
+  const { profile } = useProfile();
+  const { connectionStatus } = useSocial();
 
-  const [profile, setProfile] = useState<PublicProfile | null>(null);
+  const [card, setCard] = useState<UserSearchResult | null>(null);
+  const [full, setFull] = useState<PublicProfile | null>(null);
   const [posts, setPosts] = useState<PublicPost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,12 +30,15 @@ export default function PublicProfileScreen() {
     let active = true;
     (async () => {
       setLoading(true);
-      const p = await fetchPublicProfile(username);
+      const view = await fetchProfileView(username);
       if (!active) return;
-      setProfile(p);
-      if (p) {
-        const ps = await fetchPostsForUser(p.id);
+      setCard(view.card);
+      setFull(view.full);
+      if (view.full) {
+        const ps = await fetchPostsForUser(view.full.id);
         if (active) setPosts(ps);
+      } else {
+        setPosts([]);
       }
       if (active) setLoading(false);
     })();
@@ -37,6 +46,9 @@ export default function PublicProfileScreen() {
       active = false;
     };
   }, [username]);
+
+  const name = full?.displayName || card?.displayName || card?.username || 'Sif user';
+  const avatarUrl = full?.avatarUrl || card?.avatarUrl || '';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -54,55 +66,91 @@ export default function PublicProfileScreen() {
         <View style={styles.center}>
           <ActivityIndicator color={Palette.accent} />
         </View>
-      ) : !profile ? (
+      ) : !card ? (
         <View style={styles.center}>
           <IconSymbol name="person.fill" size={40} color={Palette.textDim} />
           <Txt variant="heading" style={{ color: Palette.textMuted }}>
             Profile not found
           </Txt>
           <Txt variant="label" style={styles.muted}>
-            This profile doesn&apos;t exist or isn&apos;t public.
+            This profile doesn&apos;t exist.
           </Txt>
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={centered ?? undefined}>
           <View style={styles.identity}>
-            {profile.avatarUrl ? (
-              <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} contentFit="cover" />
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" />
             ) : (
               <View style={[styles.avatar, styles.avatarPlaceholder]}>
                 <IconSymbol name="person.fill" size={36} color={Palette.textMuted} />
               </View>
             )}
-            <Txt variant="heading">{profile.displayName || profile.username || 'Sif user'}</Txt>
-            {profile.username ? <Txt variant="label">@{profile.username}</Txt> : null}
-            {profile.bio ? (
+            <View style={styles.nameRow}>
+              <Txt variant="heading">{name}</Txt>
+              {card.isStylist ? (
+                <View style={styles.stylistBadge}>
+                  <Txt variant="caption" color={Palette.black}>
+                    Stylist
+                  </Txt>
+                </View>
+              ) : null}
+            </View>
+            {card.username ? <Txt variant="label">@{card.username}</Txt> : null}
+            {full?.bio ? (
               <Txt variant="label" style={styles.bio}>
-                {profile.bio}
+                {full.bio}
               </Txt>
             ) : null}
-            <View style={styles.statRow}>
-              <Txt variant="heading">{posts.length}</Txt>
-              <Txt variant="caption">{posts.length === 1 ? 'post' : 'posts'}</Txt>
+
+            <View style={styles.buttons}>
+              <RelationshipButtons userId={card.id} />
             </View>
+
+            {profile?.isStylist && connectionStatus(card.id) === 'connected' ? (
+              <Pressable
+                style={styles.stylistAction}
+                onPress={() =>
+                  router.push(`/add?clientId=${card.id}&clientName=${card.username ?? ''}`)
+                }>
+                <IconSymbol name="scissors" size={16} color={Palette.black} />
+                <Txt variant="label" color={Palette.black} style={{ fontWeight: '600' }}>
+                  Create a cut for them
+                </Txt>
+              </Pressable>
+            ) : null}
           </View>
 
-          {posts.length === 0 ? (
-            <View style={styles.emptyPosts}>
-              <Txt variant="label" style={styles.muted}>
-                No posts yet.
-              </Txt>
-            </View>
+          {full ? (
+            posts.length === 0 ? (
+              <View style={styles.emptyPosts}>
+                <Txt variant="label" style={styles.muted}>
+                  No posts yet.
+                </Txt>
+              </View>
+            ) : (
+              <View style={styles.grid}>
+                {posts.map((post) => (
+                  <Pressable
+                    key={post.id}
+                    style={styles.cell}
+                    onPress={() => router.push(`/p/${post.id}`)}>
+                    <Image source={{ uri: post.photoUrl }} style={styles.tile} contentFit="cover" />
+                  </Pressable>
+                ))}
+              </View>
+            )
           ) : (
-            <View style={styles.grid}>
-              {posts.map((post) => (
-                <Pressable
-                  key={post.id}
-                  style={styles.cell}
-                  onPress={() => router.push(`/p/${post.id}`)}>
-                  <Image source={{ uri: post.photoUrl }} style={styles.tile} contentFit="cover" />
-                </Pressable>
-              ))}
+            <View style={styles.privateBox}>
+              <IconSymbol name="lock.fill" size={28} color={Palette.textMuted} />
+              <Txt variant="heading" style={{ color: Palette.textMuted }}>
+                This account is {card.privacy === 'connections' ? 'connections-only' : 'private'}
+              </Txt>
+              <Txt variant="label" style={styles.muted}>
+                {card.privacy === 'connections'
+                  ? 'Connect to see their posts.'
+                  : 'Only the owner can view this profile.'}
+              </Txt>
             </View>
           )}
         </ScrollView>
@@ -125,9 +173,27 @@ const styles = StyleSheet.create({
   identity: { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.lg },
   avatar: { width: 96, height: 96, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt },
   avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  stylistBadge: {
+    backgroundColor: Palette.accent,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 1,
+  },
   bio: { textAlign: 'center', maxWidth: 280, marginTop: Spacing.xs },
-  statRow: { alignItems: 'center', marginTop: Spacing.sm },
+  buttons: { marginTop: Spacing.md },
+  stylistAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+    backgroundColor: Palette.accent,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.pill,
+  },
   emptyPosts: { alignItems: 'center', paddingVertical: Spacing.xxl },
+  privateBox: { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xxl, paddingHorizontal: Spacing.lg },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: '33.333%', aspectRatio: 1, padding: 1 },
   tile: { flex: 1, backgroundColor: Palette.surfaceAlt },
