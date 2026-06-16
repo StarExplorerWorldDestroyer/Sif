@@ -1,10 +1,11 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Alert,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -311,7 +312,9 @@ export default function HaircutDetailScreen() {
 function Gallery({ photos }: { photos: Photo[] }) {
   const { width } = useWindowDimensions();
   const isDesktop = useIsDesktop();
+  const scrollRef = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
+  const [hovered, setHovered] = useState(false);
 
   // Cap the photo size on desktop so it doesn't fill a huge window.
   const size = isDesktop ? 460 : width;
@@ -324,14 +327,28 @@ function Gallery({ photos }: { photos: Photo[] }) {
     setIndex(Math.round(e.nativeEvent.contentOffset.x / size));
   }
 
+  function go(delta: number) {
+    const next = Math.min(Math.max(index + delta, 0), photos.length - 1);
+    setIndex(next);
+    scrollRef.current?.scrollTo({ x: next * size, animated: true });
+  }
+
   const current = photos[Math.min(index, photos.length - 1)];
+  // On web there's no swipe gesture, so show clickable arrows on hover.
+  const showArrows = Platform.OS === 'web' && photos.length > 1;
 
   return (
-    <View style={{ width: size, alignSelf: 'center' }}>
+    <View
+      style={{ width: size, alignSelf: 'center' }}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}>
       <ScrollView
+        ref={scrollRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={onScroll}
         onMomentumScrollEnd={onScroll}>
         {photos.map((photo) => (
           <View key={photo.id} style={{ width: size, height: size }}>
@@ -344,6 +361,21 @@ function Gallery({ photos }: { photos: Photo[] }) {
           </View>
         ))}
       </ScrollView>
+
+      {showArrows && index > 0 ? (
+        <Pressable
+          style={[styles.navArrow, styles.navLeft, { top: size / 2 - 20, opacity: hovered ? 1 : 0 }]}
+          onPress={() => go(-1)}>
+          <IconSymbol name="chevron.left" size={26} color={Palette.text} />
+        </Pressable>
+      ) : null}
+      {showArrows && index < photos.length - 1 ? (
+        <Pressable
+          style={[styles.navArrow, styles.navRight, { top: size / 2 - 20, opacity: hovered ? 1 : 0 }]}
+          onPress={() => go(1)}>
+          <IconSymbol name="chevron.right" size={26} color={Palette.text} />
+        </Pressable>
+      ) : null}
 
       {photos.length > 1 ? (
         <View style={styles.dots}>
@@ -444,6 +476,17 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surfaceAlt,
   },
   dotActive: { backgroundColor: Palette.accent },
+  navArrow: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: Radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navLeft: { left: Spacing.sm },
+  navRight: { right: Spacing.sm },
   photoNote: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
