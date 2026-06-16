@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -54,10 +54,6 @@ export default function ExploreScreen() {
     return () => clearTimeout(t);
   }, [query]);
 
-  function openUser(u: UserSearchResult) {
-    if (u.username) router.push(`/u/${u.username}`);
-  }
-
   return (
     <Screen padded={false}>
       <View style={styles.header}>
@@ -99,7 +95,7 @@ export default function ExploreScreen() {
             </Txt>
           ) : (
             results.map((u) => (
-              <Pressable key={u.id} style={styles.userRow} onPress={() => openUser(u)}>
+              <UserRowLink key={u.id} username={u.username}>
                 {u.avatarUrl ? (
                   <Image source={{ uri: u.avatarUrl }} style={styles.userAvatar} contentFit="cover" />
                 ) : (
@@ -128,7 +124,7 @@ export default function ExploreScreen() {
                   ) : null}
                 </View>
                 <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
-              </Pressable>
+              </UserRowLink>
             ))
           )}
         </ScrollView>
@@ -194,6 +190,20 @@ export default function ExploreScreen() {
       </ScrollView>
       )}
     </Screen>
+  );
+}
+
+/**
+ * A search-result row that links to a user's public profile. Uses Expo
+ * Router's Link (a real anchor on web) so taps register reliably on mobile
+ * browsers.
+ */
+function UserRowLink({ username, children }: { username: string | null; children: ReactNode }) {
+  if (!username) return <View style={styles.userRow}>{children}</View>;
+  return (
+    <Link href={`/u/${username}`} asChild>
+      <Pressable style={styles.userRow}>{children}</Pressable>
+    </Link>
   );
 }
 

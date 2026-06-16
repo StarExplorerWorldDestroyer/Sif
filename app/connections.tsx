@@ -1,7 +1,15 @@
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState, type ReactNode } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -34,10 +42,6 @@ export default function ConnectionsScreen() {
     }, [refresh]),
   );
 
-  function openUser(u: UserSearchResult) {
-    if (u.username) router.push(`/u/${u.username}`);
-  }
-
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
@@ -61,7 +65,7 @@ export default function ConnectionsScreen() {
               </Txt>
               {incoming.map((u) => (
                 <View key={u.id} style={styles.row}>
-                  <Pressable style={styles.person} onPress={() => openUser(u)}>
+                  <PersonLink username={u.username} style={styles.person}>
                     <Avatar uri={u.avatarUrl} />
                     <View style={{ flex: 1 }}>
                       <Txt variant="body" numberOfLines={1}>
@@ -73,7 +77,7 @@ export default function ConnectionsScreen() {
                         </Txt>
                       ) : null}
                     </View>
-                  </Pressable>
+                  </PersonLink>
                   <View style={styles.actions}>
                     <Pressable
                       style={[styles.smallBtn, styles.filled]}
@@ -110,7 +114,7 @@ export default function ConnectionsScreen() {
             </Txt>
           ) : (
             connected.map((u) => (
-              <Pressable key={u.id} style={styles.row} onPress={() => openUser(u)}>
+              <PersonLink key={u.id} username={u.username} style={styles.row}>
                 <View style={styles.person}>
                   <Avatar uri={u.avatarUrl} />
                   <View style={{ flex: 1 }}>
@@ -125,12 +129,34 @@ export default function ConnectionsScreen() {
                   </View>
                 </View>
                 <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
-              </Pressable>
+              </PersonLink>
             ))
           )}
         </ScrollView>
       )}
     </SafeAreaView>
+  );
+}
+
+/**
+ * A tappable person row that navigates to their public profile. Uses Expo
+ * Router's Link (a real anchor on web) so taps register reliably on mobile
+ * browsers, falling back to a plain View when there's no username to link to.
+ */
+function PersonLink({
+  username,
+  style,
+  children,
+}: {
+  username: string | null;
+  style?: StyleProp<ViewStyle>;
+  children: ReactNode;
+}) {
+  if (!username) return <View style={style}>{children}</View>;
+  return (
+    <Link href={`/u/${username}`} asChild>
+      <Pressable style={style}>{children}</Pressable>
+    </Link>
   );
 }
 

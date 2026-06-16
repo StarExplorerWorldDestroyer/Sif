@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
@@ -25,6 +25,7 @@ export function UpdateTimeline({ haircutId }: { haircutId: string }) {
   const [note, setNote] = useState('');
   const [takenOn, setTakenOn] = useState(today());
   const [saving, setSaving] = useState(false);
+  const [viewing, setViewing] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setUpdates(await fetchUpdates(haircutId));
@@ -106,7 +107,9 @@ export function UpdateTimeline({ haircutId }: { haircutId: string }) {
       ) : (
         updates.map((u) => (
           <View key={u.id} style={styles.item}>
-            <Image source={{ uri: u.uri }} style={styles.thumb} contentFit="cover" />
+            <Pressable onPress={() => setViewing(u.uri)}>
+              <Image source={{ uri: u.uri }} style={styles.thumb} contentFit="cover" />
+            </Pressable>
             <View style={{ flex: 1, gap: 2 }}>
               <Txt variant="caption" color={Palette.textMuted}>
                 {formatDate(u.takenOn)}
@@ -169,6 +172,17 @@ export function UpdateTimeline({ haircutId }: { haircutId: string }) {
           </View>
         ) : null}
       </View>
+
+      <Modal visible={!!viewing} transparent animationType="fade" onRequestClose={() => setViewing(null)}>
+        <Pressable style={styles.lightbox} onPress={() => setViewing(null)}>
+          {viewing ? (
+            <Image source={{ uri: viewing }} style={styles.lightboxImage} contentFit="contain" />
+          ) : null}
+          <Pressable style={styles.lightboxClose} onPress={() => setViewing(null)} hitSlop={12}>
+            <IconSymbol name="xmark" size={24} color={Palette.text} />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -209,4 +223,23 @@ const styles = StyleSheet.create({
   btn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.pill, alignItems: 'center' },
   save: { backgroundColor: Palette.accent },
   cancel: { borderWidth: StyleSheet.hairlineWidth, borderColor: Palette.border },
+  lightbox: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  lightboxImage: { width: '100%', height: '80%' },
+  lightboxClose: {
+    position: 'absolute',
+    top: Spacing.xl,
+    right: Spacing.xl,
+    width: 40,
+    height: 40,
+    borderRadius: Radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
