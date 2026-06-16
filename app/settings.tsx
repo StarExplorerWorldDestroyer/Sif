@@ -10,7 +10,7 @@ import { useCenteredContent } from '@/hooks/use-responsive';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
 import { useProfile } from '@/store/profile';
-import type { Units } from '@/types';
+import { PRIVACY_OPTIONS, type Units } from '@/types';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY'];
 
@@ -108,23 +108,6 @@ export default function SettingsScreen() {
 
           <View style={styles.toggleRow}>
             <View style={{ flex: 1 }}>
-              <Txt variant="body">Public profile</Txt>
-              <Txt variant="caption">Let others find and view your profile.</Txt>
-            </View>
-            <Switch
-              value={profile?.profilePublic ?? false}
-              onValueChange={(v) => {
-                updateProfile({ profilePublic: v });
-              }}
-              trackColor={{ true: Palette.accent, false: Palette.surfaceAlt }}
-              thumbColor={Palette.text}
-            />
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.toggleRow}>
-            <View style={{ flex: 1 }}>
               <Txt variant="body">Notifications</Txt>
               <Txt variant="caption">Reminders and activity updates.</Txt>
             </View>
@@ -132,6 +115,50 @@ export default function SettingsScreen() {
               value={profile?.notificationsEnabled ?? true}
               onValueChange={(v) => {
                 updateProfile({ notificationsEnabled: v });
+              }}
+              trackColor={{ true: Palette.accent, false: Palette.surfaceAlt }}
+              thumbColor={Palette.text}
+            />
+          </View>
+        </View>
+
+        <SectionTitle>Privacy & safety</SectionTitle>
+        <View style={styles.card}>
+          <Txt variant="label" style={styles.rowLabel}>
+            Who can see your profile
+          </Txt>
+          <View style={styles.pillRow}>
+            {PRIVACY_OPTIONS.map((opt) => {
+              const active = (profile?.privacy ?? 'public') === opt.value;
+              return (
+                <Pressable
+                  key={opt.value}
+                  onPress={() => updateProfile({ privacy: opt.value })}
+                  style={[styles.pill, active && styles.pillActive]}>
+                  <Txt variant="caption" color={active ? Palette.black : Palette.textMuted}>
+                    {opt.label}
+                  </Txt>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Txt variant="caption" style={styles.hint}>
+            {PRIVACY_OPTIONS.find((o) => o.value === (profile?.privacy ?? 'public'))?.hint}
+          </Txt>
+
+          <View style={styles.divider} />
+
+          <View style={styles.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Txt variant="body">Stylist account</Txt>
+              <Txt variant="caption">
+                Lets clients connect with you and tag you, and lets you create cuts for them.
+              </Txt>
+            </View>
+            <Switch
+              value={profile?.isStylist ?? false}
+              onValueChange={(v) => {
+                updateProfile({ isStylist: v });
               }}
               trackColor={{ true: Palette.accent, false: Palette.surfaceAlt }}
               thumbColor={Palette.text}
@@ -200,6 +227,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   rowLabel: { marginBottom: Spacing.sm },
+  hint: { marginTop: Spacing.sm },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   pill: {
     paddingHorizontal: Spacing.md,

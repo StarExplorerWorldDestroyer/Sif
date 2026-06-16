@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/ui/card';
+import { UpdateTimeline } from '@/components/cuts/update-timeline';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Pill } from '@/components/ui/pill';
 import { Txt } from '@/components/ui/text';
@@ -282,6 +283,15 @@ export default function HaircutDetailScreen() {
               </>
             ) : null}
           </Card>
+        </Section>
+
+        {/* Grow-out timeline */}
+        <Section>
+          <SectionTitle>Timeline</SectionTitle>
+          <Txt variant="caption" style={{ marginBottom: Spacing.md }}>
+            Track how this cut grew out — add the next-day look and updates over the weeks.
+          </Txt>
+          <UpdateTimeline haircutId={haircut.id} />
         </Section>
 
         {/* Delete */}

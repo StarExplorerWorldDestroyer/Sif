@@ -25,11 +25,17 @@ const today = new Date().toISOString().slice(0, 10);
 
 export default function AddHaircutScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const { addHaircut, updateHaircut, getById } = useHaircuts();
+  const { id, clientId, clientName } = useLocalSearchParams<{
+    id?: string;
+    clientId?: string;
+    clientName?: string;
+  }>();
+  const { addHaircut, updateHaircut, createForClient, getById } = useHaircuts();
   const centered = useCenteredContent(640);
 
   const editing = getById(id ?? '');
+  // Stylist mode: building a cut to submit to a connected client's account.
+  const forClient = !!clientId && !editing;
 
   const [cutType, setCutType] = useState(editing?.cutType ?? '');
   const [location, setLocation] = useState(editing?.location ?? '');
@@ -67,6 +73,15 @@ export default function AddHaircutScreen() {
     };
     setSaving(true);
     try {
+      if (forClient && clientId) {
+        await createForClient(clientId, input);
+        router.back();
+        Alert.alert(
+          'Cut submitted',
+          `Sent to ${clientName || 'your client'}. It’ll appear in their account once they accept it.`,
+        );
+        return;
+      }
       if (editing) {
         await updateHaircut(editing.id, input);
       } else {
@@ -87,7 +102,9 @@ export default function AddHaircutScreen() {
             Cancel
           </Txt>
         </Pressable>
-        <Txt variant="heading">{editing ? 'Edit Haircut' : 'Add Haircut'}</Txt>
+        <Txt variant="heading">
+          {forClient ? 'Cut for client' : editing ? 'Edit Haircut' : 'Add Haircut'}
+        </Txt>
         <Pressable onPress={handleSave} hitSlop={8} disabled={!canSave}>
           <Txt variant="body" color={canSave ? Palette.accent : Palette.textDim}>
             Save
@@ -102,6 +119,17 @@ export default function AddHaircutScreen() {
           contentContainerStyle={[styles.content, centered]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
+          {forClient ? (
+            <View style={styles.clientBanner}>
+              <Txt variant="label" color={Palette.text}>
+                Submitting to {clientName ? `@${clientName}` : 'your client'}
+              </Txt>
+              <Txt variant="caption">
+                They’ll review and accept it before it’s added to their account.
+              </Txt>
+            </View>
+          ) : null}
+
           <Txt variant="caption" style={styles.legend}>
             <Txt variant="caption" color={Palette.accent}>
               *
@@ -226,7 +254,7 @@ export default function AddHaircutScreen() {
               <ActivityIndicator color={Palette.black} />
             ) : (
               <Txt variant="body" color={Palette.black} style={styles.saveText}>
-                {editing ? 'Save Changes' : 'Save Haircut'}
+                {forClient ? 'Submit to client' : editing ? 'Save Changes' : 'Save Haircut'}
               </Txt>
             )}
           </Pressable>
@@ -258,6 +286,15 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
   },
   legend: { marginBottom: Spacing.lg },
+  clientBanner: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: 2,
+  },
   sectionLabel: { marginBottom: Spacing.sm },
   saveHint: { textAlign: 'center', marginTop: Spacing.sm },
   row: { flexDirection: 'row', gap: Spacing.md },
