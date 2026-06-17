@@ -34,6 +34,8 @@ function message(n: AppNotification): string {
       return `${name} started following you`;
     case 'pending_cut':
       return `${name} sent you a new cut to review`;
+    case 'post_tag':
+      return `${name} tagged you in a post`;
     default:
       return name;
   }
@@ -45,6 +47,8 @@ function href(n: AppNotification): string {
       return '/connections';
     case 'pending_cut':
       return '/pending';
+    case 'post_tag':
+      return n.entityId ? `/p/${n.entityId}` : '/';
     case 'connection_accepted':
     case 'follow':
       return n.actor?.username ? `/u/${n.actor.username}` : '/connections';
@@ -139,7 +143,11 @@ function NotifLink({
 
 function Avatar({ uri, type }: { uri: string; type: AppNotification['type'] }) {
   const icon =
-    type === 'pending_cut' ? 'scissors' : type === 'follow' ? 'person.fill' : 'person.2.fill';
+    type === 'pending_cut' || type === 'post_tag'
+      ? 'scissors'
+      : type === 'follow'
+        ? 'person.fill'
+        : 'person.2.fill';
   if (uri) return <Image source={{ uri }} style={styles.avatar} contentFit="cover" />;
   return (
     <View style={[styles.avatar, styles.avatarPlaceholder]}>

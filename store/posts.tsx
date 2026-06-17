@@ -14,8 +14,14 @@ type PostsContextValue = {
     caption: string,
     snapshot: { photoUrl: string; cutType: string },
     visibility?: PostVisibility,
+    stylistId?: string | null,
   ) => Promise<void>;
-  updatePost: (id: string, caption: string, visibility?: PostVisibility) => Promise<void>;
+  updatePost: (
+    id: string,
+    caption: string,
+    visibility?: PostVisibility,
+    stylistId?: string | null,
+  ) => Promise<void>;
   deletePost: (id: string) => Promise<void>;
   getById: (id: string) => Post | undefined;
 };
@@ -31,6 +37,7 @@ function rowToPost(row: any): Post {
     photoUrl: row.photo_url ?? '',
     cutType: row.cut_type ?? '',
     visibility: (row.visibility as PostVisibility) ?? 'public',
+    stylistId: row.stylist_id ?? null,
   };
 }
 
@@ -86,6 +93,7 @@ export function PostsProvider({ children }: { children: ReactNode }) {
     caption: string,
     snapshot: { photoUrl: string; cutType: string },
     visibility: PostVisibility = 'public',
+    stylistId: string | null = null,
   ) {
     await supabase.from('posts').insert({
       haircut_id: haircutId,
@@ -93,13 +101,20 @@ export function PostsProvider({ children }: { children: ReactNode }) {
       photo_url: snapshot.photoUrl,
       cut_type: snapshot.cutType,
       visibility,
+      stylist_id: stylistId,
     });
     await refetch();
   }
 
-  async function updatePost(id: string, caption: string, visibility?: PostVisibility) {
+  async function updatePost(
+    id: string,
+    caption: string,
+    visibility?: PostVisibility,
+    stylistId?: string | null,
+  ) {
     const patch: Record<string, unknown> = { caption: caption.trim() };
     if (visibility !== undefined) patch.visibility = visibility;
+    if (stylistId !== undefined) patch.stylist_id = stylistId;
     await supabase.from('posts').update(patch).eq('id', id);
     await refetch();
   }

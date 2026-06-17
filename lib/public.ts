@@ -63,7 +63,15 @@ export async function fetchProfileView(
   return { card, full: null };
 }
 
-/** Attach author profiles to a set of post rows in a single extra query. */
+/** Minimal cards for a set of user ids (privacy-safe, works for anon viewers). */
+export async function fetchCardsByIds(ids: string[]): Promise<UserSearchResult[]> {
+  const unique = Array.from(new Set(ids.filter(Boolean)));
+  if (unique.length === 0) return [];
+  const { data } = await supabase.rpc('profile_cards_by_ids', { ids: unique });
+  return (data ?? []).map(rpcToCard);
+}
+
+/** Attach author profiles (and any tagged stylist) to a set of post rows. */
 async function withAuthors(postRows: any[]): Promise<PublicPost[]> {
   if (postRows.length === 0) return [];
   const userIds = Array.from(new Set(postRows.map((p) => p.user_id)));
@@ -72,6 +80,9 @@ async function withAuthors(postRows: any[]): Promise<PublicPost[]> {
     .select('id, username, display_name, bio, avatar_url')
     .in('id', userIds);
   const byId = new Map((profiles ?? []).map((p) => [p.id, rowToPublicProfile(p)]));
+
+  const stylists = await fetchCardsByIds(postRows.map((p) => p.stylist_id));
+  const stylistById = new Map(stylists.map((s) => [s.id, s]));
 
   return postRows
     .filter((p) => byId.has(p.user_id))
@@ -82,6 +93,7 @@ async function withAuthors(postRows: any[]): Promise<PublicPost[]> {
       cutType: p.cut_type ?? '',
       createdAt: p.created_at,
       author: byId.get(p.user_id)!,
+      stylist: p.stylist_id ? stylistById.get(p.stylist_id) ?? null : null,
     }));
 }
 

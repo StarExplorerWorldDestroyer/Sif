@@ -90,6 +90,20 @@ export default function PublicPostScreen() {
                 {post.cutType}
               </Txt>
             ) : null}
+            {post.stylist ? (
+              <Pressable
+                style={styles.stylistRow}
+                onPress={() =>
+                  post.stylist?.username
+                    ? router.push(`/u/${post.stylist.username}`)
+                    : undefined
+                }>
+                <IconSymbol name="scissors" size={14} color={Palette.textMuted} />
+                <Txt variant="label" color={Palette.text}>
+                  Cut by {post.stylist.displayName || `@${post.stylist.username}` || 'stylist'}
+                </Txt>
+              </Pressable>
+            ) : null}
             <Txt variant="caption">{formatDate(post.createdAt)}</Txt>
           </View>
         </ScrollView>
@@ -121,4 +135,5 @@ const styles = StyleSheet.create({
   photo: { width: '100%', aspectRatio: 1, backgroundColor: Palette.surfaceAlt },
   body: { padding: Spacing.lg, gap: Spacing.sm },
   caption: { lineHeight: 22 },
+  stylistRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
 });

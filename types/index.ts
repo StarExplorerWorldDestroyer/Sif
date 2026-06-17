@@ -66,6 +66,8 @@ export type Post = {
   /** Snapshot of the haircut's cut type at post time. */
   cutType: string;
   visibility: PostVisibility;
+  /** User id of a tagged/credited stylist, if any. */
+  stylistId: string | null;
 };
 
 /** A public-facing profile shown on shareable pages (no private fields). */
@@ -106,7 +108,8 @@ export type NotificationType =
   | 'connection_request'
   | 'connection_accepted'
   | 'follow'
-  | 'pending_cut';
+  | 'pending_cut'
+  | 'post_tag';
 
 /** An in-app notification, with the acting user resolved for display. */
 export type AppNotification = {
@@ -126,6 +129,8 @@ export type PublicPost = {
   cutType: string;
   createdAt: string;
   author: PublicProfile;
+  /** Tagged/credited stylist, resolved for display (null if none). */
+  stylist: UserSearchResult | null;
 };
 
 export type Profile = {

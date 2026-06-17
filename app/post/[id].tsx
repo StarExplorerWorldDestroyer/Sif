@@ -1,19 +1,22 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { StylistPicker } from '@/components/social/stylist-picker';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/format';
+import { fetchCardsByIds } from '@/lib/public';
 import { primaryPhotoUri } from '@/lib/photos';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useAuth } from '@/store/auth';
 import { useHaircuts } from '@/store/haircuts';
 import { usePosts } from '@/store/posts';
 import { useProfile } from '@/store/profile';
-import { POST_VISIBILITY_OPTIONS } from '@/types';
+import { POST_VISIBILITY_OPTIONS, type UserSearchResult } from '@/types';
 
 export default function PostScreen() {
   const router = useRouter();
@@ -28,6 +31,22 @@ export default function PostScreen() {
   const haircut = post ? getHaircut(post.haircutId) : undefined;
 
   const handle = profile?.username || profile?.displayName || user?.email?.split('@')[0] || 'you';
+
+  const [stylist, setStylist] = useState<UserSearchResult | null>(null);
+  const stylistId = post?.stylistId ?? null;
+  useEffect(() => {
+    let active = true;
+    if (!stylistId) {
+      setStylist(null);
+      return;
+    }
+    fetchCardsByIds([stylistId]).then((cards) => {
+      if (active) setStylist(cards[0] ?? null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [stylistId]);
 
   if (!post || !haircut) {
     return (
@@ -114,6 +133,19 @@ export default function PostScreen() {
               {post.caption}
             </Txt>
           ) : null}
+
+          <View>
+            <Txt variant="caption" style={{ marginBottom: Spacing.sm }}>
+              Stylist
+            </Txt>
+            <StylistPicker
+              value={stylist}
+              onChange={(s) => {
+                setStylist(s);
+                updatePost(post.id, post.caption, post.visibility, s?.id ?? null);
+              }}
+            />
+          </View>
 
           <View>
             <Txt variant="caption" style={{ marginBottom: Spacing.sm }}>

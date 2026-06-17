@@ -181,6 +181,14 @@ export default function ExploreScreen() {
                       {post.caption}
                     </Txt>
                   ) : null}
+                  {post.stylist ? (
+                    <View style={styles.stylistCredit}>
+                      <IconSymbol name="scissors" size={12} color={Palette.textMuted} />
+                      <Txt variant="caption" color={Palette.textMuted} numberOfLines={1}>
+                        {post.stylist.displayName || `@${post.stylist.username}`}
+                      </Txt>
+                    </View>
+                  ) : null}
                 </Pressable>
               </View>
             ))}
@@ -253,5 +261,13 @@ const styles = StyleSheet.create({
   avatar: { width: 28, height: 28, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt },
   avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   photo: { width: '100%', aspectRatio: 1, backgroundColor: Palette.surfaceAlt },
-  caption: { padding: Spacing.md },
+  caption: { padding: Spacing.md, paddingBottom: Spacing.sm },
+  stylistCredit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+  },
 });
+
