@@ -134,9 +134,16 @@ function NotifLink({
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
 }) {
+  // Keep the row styling on an inner View rather than on the Pressable. When
+  // <Link asChild> injects an `href`, react-native-web renders the Pressable as
+  // an <a>, and a style *array* leaks straight to that DOM node — react-dom then
+  // throws "Failed to set an indexed property [0] on CSSStyleDeclaration",
+  // blanking the whole screen. The anchor stays unstyled; the View flattens fine.
   return (
     <Link href={to as never} asChild>
-      <Pressable style={style}>{children}</Pressable>
+      <Pressable>
+        <View style={style}>{children}</View>
+      </Pressable>
     </Link>
   );
 }

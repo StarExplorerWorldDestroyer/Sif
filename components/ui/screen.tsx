@@ -21,7 +21,7 @@ export function Screen({
 }) {
   return (
     <SafeAreaView style={styles.safe} edges={edges}>
-      <View style={[padded && styles.padded, style]}>{children}</View>
+      <View style={[styles.fill, padded && styles.padded, style]}>{children}</View>
     </SafeAreaView>
   );
 }
@@ -31,8 +31,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Palette.black,
   },
-  padded: {
+  // Always fill the safe area so child scroll views get a bounded height to
+  // scroll within (without this, padded={false} screens collapse to content
+  // height and their ScrollView can't scroll).
+  fill: {
     flex: 1,
+  },
+  padded: {
     paddingHorizontal: Spacing.lg,
   },
 });
