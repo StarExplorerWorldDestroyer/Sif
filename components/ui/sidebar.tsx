@@ -21,11 +21,14 @@ export function Sidebar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View style={styles.sidebar}>
-      <View style={styles.brand}>
+      <Pressable
+        style={styles.brand}
+        hitSlop={8}
+        onPress={() => navigation.navigate('index')}>
         <Txt variant="title" color={Palette.accent}>
           Sif
         </Txt>
-      </View>
+      </Pressable>
 
       <View style={styles.nav}>
         {state.routes.map((route, index) => {
@@ -80,7 +83,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xl,
     gap: Spacing.xl,
   },
-  brand: { paddingHorizontal: Spacing.md },
+  brand: { paddingHorizontal: Spacing.md, alignSelf: 'flex-start' },
   nav: { gap: Spacing.xs, flex: 1 },
   item: {
     flexDirection: 'row',
