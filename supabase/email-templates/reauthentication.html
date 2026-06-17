@@ -1,0 +1,50 @@
+<!--
+  Sif — Reauthentication template
+  Paste into Supabase: Authentication → Emails → Templates → "Reauthentication"
+  Subject: Your Sif verification code
+  Variable used: {{ .Token }}  (a one-time code, not a link)
+-->
+<!DOCTYPE html>
+<html lang="en">
+  <body style="margin:0; padding:0; background-color:#000000;">
+    <span style="display:none; max-height:0; overflow:hidden; opacity:0;">Your Sif verification code.</span>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#000000; padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#111111; border:1px solid #2D2D2D; border-radius:16px;">
+            <tr>
+              <td style="padding:32px 32px 0 32px; text-align:center;">
+                <div style="font-family:Helvetica,Arial,sans-serif; font-size:28px; font-weight:700; letter-spacing:2px; color:#FF5733;">Sif</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 32px 0 32px;">
+                <h1 style="margin:0 0 12px 0; font-family:Helvetica,Arial,sans-serif; font-size:22px; font-weight:600; color:#FFFFFF; text-align:center;">Verification code</h1>
+                <p style="margin:0; font-family:Helvetica,Arial,sans-serif; font-size:15px; line-height:22px; color:#9BA1A6; text-align:center;">
+                  Enter this code to confirm it’s you.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:24px 32px 8px 32px;">
+                <div style="display:inline-block; background-color:#1F1F1F; border:1px solid #2D2D2D; border-radius:12px; padding:16px 28px; font-family:'Courier New',Courier,monospace; font-size:30px; font-weight:700; letter-spacing:8px; color:#FFFFFF;">
+                  {{ .Token }}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 32px 32px 32px; border-top:1px solid #2D2D2D;">
+                <p style="margin:0; font-family:Helvetica,Arial,sans-serif; font-size:12px; line-height:18px; color:#6B6B6B; text-align:center;">
+                  Didn’t request this? You can safely ignore this email.
+                </p>
+                <p style="margin:8px 0 0 0; font-family:Helvetica,Arial,sans-serif; font-size:12px; color:#6B6B6B; text-align:center;">
+                  Sif · <a href="https://goldensif.com" style="color:#9BA1A6; text-decoration:none;">goldensif.com</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
