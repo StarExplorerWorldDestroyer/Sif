@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { StylistPicker } from '@/components/social/stylist-picker';
 import { Field } from '@/components/ui/field';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
@@ -12,7 +13,7 @@ import { hasPhoto, primaryPhotoUri } from '@/lib/photos';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useHaircuts } from '@/store/haircuts';
 import { usePosts } from '@/store/posts';
-import { POST_VISIBILITY_OPTIONS, type PostVisibility } from '@/types';
+import { POST_VISIBILITY_OPTIONS, type PostVisibility, type UserSearchResult } from '@/types';
 
 export default function NewPostScreen() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function NewPostScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
   const [visibility, setVisibility] = useState<PostVisibility>('public');
+  const [stylist, setStylist] = useState<UserSearchResult | null>(null);
   const [saving, setSaving] = useState(false);
 
   const selectedHaircut = postable.find((h) => h.id === selected);
@@ -42,6 +44,7 @@ export default function NewPostScreen() {
         cutType: selectedHaircut.cutType,
       },
       visibility,
+      stylist?.id ?? null,
     );
     router.back();
   }
@@ -89,6 +92,11 @@ export default function NewPostScreen() {
             );
           })}
         </View>
+
+        <Txt variant="label" style={styles.pickLabel}>
+          Tag your stylist
+        </Txt>
+        <StylistPicker value={stylist} onChange={setStylist} />
 
         <Txt variant="label" style={styles.pickLabel}>
           Pick a haircut to post
