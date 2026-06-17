@@ -15,6 +15,8 @@ export type HaircutFormInput = {
   cutType: string;
   location: string;
   stylistName: string;
+  /** Linked stylist account id, if the stylist was picked from search. */
+  stylistId: string | null;
   date: string;
   price: number;
   tip: number;
@@ -97,6 +99,7 @@ function rowToHaircut(row: any): Haircut {
     privateNotes: row.private_notes,
     stylistNotes: row.stylist_notes,
     stylist,
+    stylistId: row.stylist_id ?? null,
     status: row.status ?? 'active',
     createdBy: row.created_by ?? row.user_id,
   };
@@ -117,6 +120,7 @@ function inputToRow(input: HaircutFormInput) {
     tools: input.tools,
     public_notes: input.notes.trim(),
     stylist: defaultStylist(input.stylistName),
+    stylist_id: input.stylistId,
   };
 }
 

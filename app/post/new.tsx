@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,6 +9,7 @@ import { Field } from '@/components/ui/field';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
+import { fetchCardsByIds } from '@/lib/public';
 import { hasPhoto, primaryPhotoUri } from '@/lib/photos';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useHaircuts } from '@/store/haircuts';
@@ -32,6 +33,19 @@ export default function NewPostScreen() {
 
   const selectedHaircut = postable.find((h) => h.id === selected);
   const canPost = !!selectedHaircut && !saving;
+
+  // Prefill the stylist tag from the chosen cut's linked stylist, if any.
+  const selectedStylistId = selectedHaircut?.stylistId ?? null;
+  useEffect(() => {
+    if (!selectedStylistId) return;
+    let active = true;
+    fetchCardsByIds([selectedStylistId]).then((cards) => {
+      if (active && cards[0]) setStylist(cards[0]);
+    });
+    return () => {
+      active = false;
+    };
+  }, [selectedStylistId]);
 
   async function handlePost() {
     if (!canPost || !selectedHaircut) return;

@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PhotoEditor } from '@/components/photos/photo-editor';
+import { StylistAutocomplete } from '@/components/social/stylist-autocomplete';
 import { Field } from '@/components/ui/field';
 import { TagInput } from '@/components/ui/tag-input';
 import { Txt } from '@/components/ui/text';
@@ -40,6 +41,7 @@ export default function AddHaircutScreen() {
   const [cutType, setCutType] = useState(editing?.cutType ?? '');
   const [location, setLocation] = useState(editing?.location ?? '');
   const [stylistName, setStylistName] = useState(editing?.stylist.name ?? '');
+  const [stylistId, setStylistId] = useState<string | null>(editing?.stylistId ?? null);
   const [date, setDate] = useState(editing?.date ?? today);
   const [price, setPrice] = useState(editing ? String(editing.price) : '');
   const [tip, setTip] = useState(editing ? String(editing.tip) : '');
@@ -60,6 +62,7 @@ export default function AddHaircutScreen() {
       cutType,
       location,
       stylistName,
+      stylistId,
       date,
       price: Number(price) || 0,
       tip: Number(tip) || 0,
@@ -155,11 +158,12 @@ export default function AddHaircutScreen() {
             value={location}
             onChangeText={setLocation}
           />
-          <Field
+          <StylistAutocomplete
             label="Stylist"
-            placeholder="e.g. Marcus Reyes"
-            value={stylistName}
-            onChangeText={setStylistName}
+            name={stylistName}
+            linked={!!stylistId}
+            onChangeName={setStylistName}
+            onPick={(s) => setStylistId(s?.id ?? null)}
           />
           <Field
             label="Date"

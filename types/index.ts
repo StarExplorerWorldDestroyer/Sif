@@ -192,6 +192,8 @@ export type Haircut = {
   stylistNotes: string;
 
   stylist: Stylist;
+  /** Linked stylist account (a Sif user), if one was tagged. */
+  stylistId: string | null;
 
   /** 'active' = a normal saved cut; 'pending' = submitted by a stylist, awaiting your acceptance. */
   status: 'active' | 'pending';
