@@ -3,8 +3,10 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { HaircutCard } from '@/components/cuts/haircut-card';
+import { ProfileCompleteness } from '@/components/cuts/profile-completeness';
 import { StatsPanel } from '@/components/cuts/stats-panel';
 import { TimeFilter } from '@/components/cuts/time-filter';
+import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Screen } from '@/components/ui/screen';
 import { TabHeader } from '@/components/ui/tab-header';
@@ -41,6 +43,7 @@ export default function CutsScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View>
+            <ProfileCompleteness />
             {pending.length > 0 ? (
               <Pressable style={styles.pendingBanner} onPress={() => router.push('/pending')}>
                 <IconSymbol name="scissors" size={18} color={Palette.accent} />
@@ -61,15 +64,29 @@ export default function CutsScreen() {
           <HaircutCard haircut={item} onPress={() => router.push(`/haircut/${item.id}`)} />
         )}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            {loading ? (
+          loading ? (
+            <View style={styles.empty}>
               <ActivityIndicator color={Palette.accent} />
-            ) : (
-              <Txt variant="label">
-                {range === 'All' ? 'No haircuts yet. Tap + to add one.' : 'No haircuts in this period.'}
-              </Txt>
-            )}
-          </View>
+            </View>
+          ) : range === 'All' ? (
+            <EmptyState
+              icon="scissors"
+              title="Start your hair history"
+              subtitle="Add your first cut to track styles, costs, and how it grows out over time."
+              primaryLabel="Add a cut"
+              onPrimary={() => router.push('/add')}
+              secondaryLabel="Browse styles"
+              onSecondary={() => router.push('/discover')}
+            />
+          ) : (
+            <EmptyState
+              icon="scissors"
+              title="No cuts in this period"
+              subtitle="Try a different time range, or log a new cut."
+              primaryLabel="Add a cut"
+              onPrimary={() => router.push('/add')}
+            />
+          )
         }
       />
     </Screen>

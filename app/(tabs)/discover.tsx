@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { TabHeader } from '@/components/ui/tab-header';
 import { Txt } from '@/components/ui/text';
@@ -88,9 +89,17 @@ export default function DiscoverScreen() {
           <StyleRow style={item} onPress={() => router.push(`/discover/${item.id}`)} />
         )}
         ListEmptyComponent={
-          <Txt variant="label" style={styles.empty}>
-            No styles match those filters yet. Try clearing one.
-          </Txt>
+          <EmptyState
+            icon="line.3.horizontal.decrease"
+            title="No matches"
+            subtitle="No styles fit those filters yet. Try clearing one."
+            primaryLabel="Clear filters"
+            onPrimary={() => {
+              setLength(null);
+              setHairType(null);
+              setMaintenance(null);
+            }}
+          />
         }
       />
     </SafeAreaView>
@@ -194,5 +203,4 @@ const styles = StyleSheet.create({
   },
   symbolText: { fontWeight: '700' },
   rowBody: { flex: 1, gap: 2 },
-  empty: { paddingVertical: Spacing.xxl, textAlign: 'center', color: Palette.textMuted },
 });

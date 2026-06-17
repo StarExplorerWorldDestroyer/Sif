@@ -10,7 +10,7 @@ import { AuthProvider, useAuth } from '@/store/auth';
 import { HaircutsProvider } from '@/store/haircuts';
 import { NotificationsProvider } from '@/store/notifications';
 import { PostsProvider } from '@/store/posts';
-import { ProfileProvider } from '@/store/profile';
+import { ProfileProvider, useProfile } from '@/store/profile';
 import { SocialProvider } from '@/store/social';
 
 export const unstable_settings = {
@@ -31,9 +31,10 @@ const AppTheme = {
   },
 };
 
-/** Redirects between the login screen and the app based on auth state. */
+/** Redirects between login, onboarding, and the app based on auth/profile state. */
 function useAuthRedirect() {
   const { user, loading, recovering } = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
   const segments = useSegments();
   const router = useRouter();
 
@@ -45,14 +46,30 @@ function useAuthRedirect() {
       return;
     }
     const onLoginScreen = segments[0] === 'login';
+    const onReset = segments[0] === 'reset';
+    const onOnboarding = segments[0] === 'onboarding';
     // Public, shareable routes that don't require being signed in.
     const onPublicRoute = segments[0] === 'u' || segments[0] === 'p';
+
     if (!user && !onLoginScreen && !onPublicRoute) {
       router.replace('/login');
-    } else if (user && onLoginScreen) {
-      router.replace('/');
+      return;
     }
-  }, [user, loading, recovering, segments, router]);
+    if (user && onLoginScreen) {
+      router.replace('/');
+      return;
+    }
+    // First-run gate: a signed-in user must pick a username before using the app.
+    if (user && !onPublicRoute && !onReset) {
+      if (profileLoading) return;
+      const needsOnboarding = !profile?.username;
+      if (needsOnboarding && !onOnboarding) {
+        router.replace('/onboarding');
+      } else if (!needsOnboarding && onOnboarding) {
+        router.replace('/');
+      }
+    }
+  }, [user, loading, recovering, profile, profileLoading, segments, router]);
 }
 
 function RootNavigator() {
@@ -60,6 +77,7 @@ function RootNavigator() {
   return (
     <Stack screenOptions={{ contentStyle: { backgroundColor: Palette.black } }}>
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="haircut/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="discover/[id]" options={{ headerShown: false }} />
