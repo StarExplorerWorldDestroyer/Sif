@@ -96,6 +96,23 @@ export type ConnectionStatus =
   | 'pending_incoming'
   | 'connected';
 
+/** Kinds of in-app notification. */
+export type NotificationType =
+  | 'connection_request'
+  | 'connection_accepted'
+  | 'follow'
+  | 'pending_cut';
+
+/** An in-app notification, with the acting user resolved for display. */
+export type AppNotification = {
+  id: string;
+  type: NotificationType;
+  actor: UserSearchResult | null;
+  entityId: string | null;
+  read: boolean;
+  createdAt: string;
+};
+
 /** A public post shown on shareable pages, joined with its author. */
 export type PublicPost = {
   id: string;

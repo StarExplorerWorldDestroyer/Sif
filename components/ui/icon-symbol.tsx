@@ -43,6 +43,9 @@ const MAPPING = {
   'checkmark': 'check',
   'sparkles': 'auto-awesome',
   'line.3.horizontal.decrease': 'filter-list',
+  'bell': 'notifications-none',
+  'bell.fill': 'notifications',
+  'person.2.fill': 'group',
 } as IconMapping;
 
 /**

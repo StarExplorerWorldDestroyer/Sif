@@ -8,6 +8,7 @@ import { WebFrame } from '@/components/ui/web-frame';
 import { Palette } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/store/auth';
 import { HaircutsProvider } from '@/store/haircuts';
+import { NotificationsProvider } from '@/store/notifications';
 import { PostsProvider } from '@/store/posts';
 import { ProfileProvider } from '@/store/profile';
 import { SocialProvider } from '@/store/social';
@@ -67,6 +68,7 @@ function RootNavigator() {
       <Stack.Screen name="settings" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="connections" options={{ headerShown: false }} />
       <Stack.Screen name="pending" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
       <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="post/new" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="u/[username]" options={{ headerShown: false }} />
@@ -82,16 +84,18 @@ export default function RootLayout() {
     <AuthProvider>
       <ProfileProvider>
         <SocialProvider>
-          <HaircutsProvider>
-            <PostsProvider>
-              <ThemeProvider value={AppTheme}>
-                <WebFrame>
-                  <RootNavigator />
-                </WebFrame>
-                <StatusBar style="light" />
-              </ThemeProvider>
-            </PostsProvider>
-          </HaircutsProvider>
+          <NotificationsProvider>
+            <HaircutsProvider>
+              <PostsProvider>
+                <ThemeProvider value={AppTheme}>
+                  <WebFrame>
+                    <RootNavigator />
+                  </WebFrame>
+                  <StatusBar style="light" />
+                </ThemeProvider>
+              </PostsProvider>
+            </HaircutsProvider>
+          </NotificationsProvider>
         </SocialProvider>
       </ProfileProvider>
     </AuthProvider>
