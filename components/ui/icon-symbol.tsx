@@ -49,6 +49,9 @@ const MAPPING = {
   'link': 'link',
   'globe': 'public',
   'camera.fill': 'photo-camera',
+  'clock': 'schedule',
+  'chart.bar': 'bar-chart',
+  'calendar': 'event',
 } as IconMapping;
 
 /**

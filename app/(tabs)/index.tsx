@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
+import { CutReminder } from '@/components/cuts/cut-reminder';
 import { HaircutCard } from '@/components/cuts/haircut-card';
 import { ProfileCompleteness } from '@/components/cuts/profile-completeness';
 import { StatsPanel } from '@/components/cuts/stats-panel';
@@ -31,9 +32,17 @@ export default function CutsScreen() {
         title="Sif"
         titleHref="/"
         actions={
-          <Pressable style={styles.addButton} hitSlop={8} onPress={() => router.push('/add')}>
-            <IconSymbol name="plus" size={22} color={Palette.black} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              style={styles.iconButton}
+              hitSlop={8}
+              onPress={() => router.push('/insights')}>
+              <IconSymbol name="chart.bar" size={20} color={Palette.text} />
+            </Pressable>
+            <Pressable style={styles.addButton} hitSlop={8} onPress={() => router.push('/add')}>
+              <IconSymbol name="plus" size={22} color={Palette.black} />
+            </Pressable>
+          </View>
         }
       />
       <FlatList
@@ -44,6 +53,7 @@ export default function CutsScreen() {
         ListHeaderComponent={
           <View>
             <ProfileCompleteness />
+            <CutReminder />
             {pending.length > 0 ? (
               <Pressable style={styles.pendingBanner} onPress={() => router.push('/pending')}>
                 <IconSymbol name="scissors" size={18} color={Palette.accent} />
@@ -56,7 +66,9 @@ export default function CutsScreen() {
                 <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
               </Pressable>
             ) : null}
-            <StatsPanel stats={stats} />
+            <Pressable onPress={() => router.push('/insights')}>
+              <StatsPanel stats={stats} />
+            </Pressable>
             <TimeFilter value={range} onChange={setRange} />
           </View>
         }
@@ -97,6 +109,19 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.xxl,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addButton: {
     width: 36,
