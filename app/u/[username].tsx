@@ -4,15 +4,16 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ProfileLinks } from '@/components/profile/profile-links';
 import { RelationshipButtons } from '@/components/social/relationship-buttons';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
-import { fetchPostsForUser, fetchProfileView } from '@/lib/public';
+import { fetchFollowCounts, fetchPostsForUser, fetchProfileView } from '@/lib/public';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useProfile } from '@/store/profile';
 import { useSocial } from '@/store/social';
-import type { PublicPost, PublicProfile, UserSearchResult } from '@/types';
+import type { FollowCounts, PublicPost, PublicProfile, UserSearchResult } from '@/types';
 
 export default function PublicProfileScreen() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function PublicProfileScreen() {
   const [card, setCard] = useState<UserSearchResult | null>(null);
   const [full, setFull] = useState<PublicProfile | null>(null);
   const [posts, setPosts] = useState<PublicPost[]>([]);
+  const [counts, setCounts] = useState<FollowCounts>({ followers: 0, following: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +36,10 @@ export default function PublicProfileScreen() {
       if (!active) return;
       setCard(view.card);
       setFull(view.full);
+      if (view.card) {
+        const c = await fetchFollowCounts(view.card.id);
+        if (active) setCounts(c);
+      }
       if (view.full) {
         const ps = await fetchPostsForUser(view.full.id);
         if (active) setPosts(ps);
@@ -97,11 +103,31 @@ export default function PublicProfileScreen() {
               ) : null}
             </View>
             {card.username ? <Txt variant="label">@{card.username}</Txt> : null}
+
+            <View style={styles.statsRow}>
+              {full ? (
+                <View style={styles.stat}>
+                  <Txt variant="heading">{posts.length}</Txt>
+                  <Txt variant="caption">Posts</Txt>
+                </View>
+              ) : null}
+              <View style={styles.stat}>
+                <Txt variant="heading">{counts.followers}</Txt>
+                <Txt variant="caption">Followers</Txt>
+              </View>
+              <View style={styles.stat}>
+                <Txt variant="heading">{counts.following}</Txt>
+                <Txt variant="caption">Following</Txt>
+              </View>
+            </View>
+
             {full?.bio ? (
               <Txt variant="label" style={styles.bio}>
                 {full.bio}
               </Txt>
             ) : null}
+
+            <ProfileLinks instagram={full?.instagram} website={full?.website} />
 
             <View style={styles.buttons}>
               <RelationshipButtons userId={card.id} />
@@ -180,7 +206,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 1,
   },
-  bio: { textAlign: 'center', maxWidth: 280, marginTop: Spacing.xs },
+  statsRow: { flexDirection: 'row', gap: Spacing.xl, marginTop: Spacing.md },
+  stat: { alignItems: 'center', minWidth: 64 },
+  bio: { textAlign: 'center', maxWidth: 280, marginTop: Spacing.md },
   buttons: { marginTop: Spacing.md },
   stylistAction: {
     flexDirection: 'row',

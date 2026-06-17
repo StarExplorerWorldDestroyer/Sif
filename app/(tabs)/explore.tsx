@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Screen } from '@/components/ui/screen';
+import { TabHeader } from '@/components/ui/tab-header';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { fetchPublicFeed, searchUsers } from '@/lib/public';
@@ -14,7 +15,7 @@ import type { PublicPost, UserSearchResult } from '@/types';
 export default function ExploreScreen() {
   const router = useRouter();
   const isDesktop = useIsDesktop();
-  const centered = useCenteredContent(1040);
+  const centered = useCenteredContent();
   const [feed, setFeed] = useState<PublicPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,11 +57,9 @@ export default function ExploreScreen() {
 
   return (
     <Screen padded={false}>
-      <View style={styles.header}>
-        <Txt variant="title">Explore</Txt>
-      </View>
+      <TabHeader title="Explore" />
 
-      <View style={styles.searchWrap}>
+      <View style={[styles.searchWrap, centered]}>
         <View style={styles.searchBox}>
           <IconSymbol name="person.fill" size={16} color={Palette.textMuted} />
           <TextInput
@@ -208,7 +207,6 @@ function UserRowLink({ username, children }: { username: string | null; children
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.sm },
   searchWrap: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
   searchBox: {
     flexDirection: 'row',
