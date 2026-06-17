@@ -46,6 +46,9 @@ const MAPPING = {
   'bell': 'notifications-none',
   'bell.fill': 'notifications',
   'person.2.fill': 'group',
+  'link': 'link',
+  'globe': 'public',
+  'camera.fill': 'photo-camera',
 } as IconMapping;
 
 /**

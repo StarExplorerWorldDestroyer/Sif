@@ -29,6 +29,8 @@ export default function EditProfileScreen() {
   const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
   const [username, setUsername] = useState(profile?.username ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
+  const [instagram, setInstagram] = useState(profile?.instagram ?? '');
+  const [website, setWebsite] = useState(profile?.website ?? '');
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -58,6 +60,8 @@ export default function EditProfileScreen() {
       displayName: displayName.trim(),
       username: username.trim().replace(/^@/, '') || null,
       bio: bio.trim(),
+      instagram: instagram.trim().replace(/^@/, ''),
+      website: website.trim(),
     });
     setSaving(false);
     if (error) {
@@ -134,6 +138,23 @@ export default function EditProfileScreen() {
             multiline
             numberOfLines={3}
             style={styles.bio}
+          />
+          <Field
+            label="Instagram"
+            placeholder="yourhandle"
+            value={instagram}
+            onChangeText={setInstagram}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Field
+            label="Website"
+            placeholder="yoursite.com"
+            value={website}
+            onChangeText={setWebsite}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
           />
         </ScrollView>
       </KeyboardAvoidingView>

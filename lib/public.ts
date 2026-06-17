@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Privacy, PublicPost, PublicProfile, UserSearchResult } from '@/types';
+import type { FollowCounts, Privacy, PublicPost, PublicProfile, UserSearchResult } from '@/types';
 
 function rowToPublicProfile(row: any): PublicProfile {
   return {
@@ -8,6 +8,8 @@ function rowToPublicProfile(row: any): PublicProfile {
     displayName: row.display_name ?? '',
     bio: row.bio ?? '',
     avatarUrl: row.avatar_url ?? '',
+    instagram: row.instagram ?? '',
+    website: row.website ?? '',
     privacy: (row.privacy as Privacy) ?? undefined,
     isStylist: row.is_stylist ?? undefined,
   };
@@ -51,7 +53,7 @@ export async function fetchProfileView(
 ): Promise<{ card: UserSearchResult | null; full: PublicProfile | null }> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, username, display_name, bio, avatar_url, privacy, is_stylist')
+    .select('id, username, display_name, bio, avatar_url, instagram, website, privacy, is_stylist')
     .eq('username', username)
     .maybeSingle();
   if (data) {
@@ -87,10 +89,19 @@ async function withAuthors(postRows: any[]): Promise<PublicPost[]> {
 export async function fetchPublicProfile(username: string): Promise<PublicProfile | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, username, display_name, bio, avatar_url, privacy, is_stylist')
+    .select('id, username, display_name, bio, avatar_url, instagram, website, privacy, is_stylist')
     .eq('username', username)
     .maybeSingle();
   return data ? rowToPublicProfile(data) : null;
+}
+
+/** Follower (people following them) and following counts for a user. */
+export async function fetchFollowCounts(userId: string): Promise<FollowCounts> {
+  const [followers, following] = await Promise.all([
+    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', userId),
+    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId),
+  ]);
+  return { followers: followers.count ?? 0, following: following.count ?? 0 };
 }
 
 /** All public posts for a given user id, newest first. */

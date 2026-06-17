@@ -75,9 +75,14 @@ export type PublicProfile = {
   displayName: string;
   bio: string;
   avatarUrl: string;
+  instagram?: string;
+  website?: string;
   privacy?: Privacy;
   isStylist?: boolean;
 };
+
+/** Follower / following counts for a profile. */
+export type FollowCounts = { followers: number; following: number };
 
 /** Minimal, privacy-safe profile card used in search results and gated views. */
 export type UserSearchResult = {
@@ -129,6 +134,8 @@ export type Profile = {
   displayName: string;
   bio: string;
   avatarUrl: string;
+  instagram: string;
+  website: string;
   currency: string;
   units: Units;
   /** @deprecated kept in sync with `privacy === 'public'` for compatibility. */

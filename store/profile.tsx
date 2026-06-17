@@ -10,6 +10,8 @@ export type ProfilePatch = Partial<{
   displayName: string;
   bio: string;
   avatarUrl: string;
+  instagram: string;
+  website: string;
   currency: string;
   units: Units;
   privacy: Privacy;
@@ -33,6 +35,8 @@ function rowToProfile(row: any): Profile {
     displayName: row.display_name ?? '',
     bio: row.bio ?? '',
     avatarUrl: row.avatar_url ?? '',
+    instagram: row.instagram ?? '',
+    website: row.website ?? '',
     currency: row.currency ?? 'USD',
     units: (row.units as Units) ?? 'in',
     profilePublic: row.profile_public ?? false,
@@ -48,6 +52,8 @@ function patchToRow(patch: ProfilePatch) {
   if (patch.displayName !== undefined) row.display_name = patch.displayName;
   if (patch.bio !== undefined) row.bio = patch.bio;
   if (patch.avatarUrl !== undefined) row.avatar_url = patch.avatarUrl;
+  if (patch.instagram !== undefined) row.instagram = patch.instagram || null;
+  if (patch.website !== undefined) row.website = patch.website || null;
   if (patch.currency !== undefined) row.currency = patch.currency;
   if (patch.units !== undefined) row.units = patch.units;
   if (patch.privacy !== undefined) {

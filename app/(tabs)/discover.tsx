@@ -4,6 +4,7 @@ import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { TabHeader } from '@/components/ui/tab-header';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import {
@@ -36,7 +37,7 @@ function initials(name: string): string {
 
 export default function DiscoverScreen() {
   const router = useRouter();
-  const centered = useCenteredContent(720);
+  const centered = useCenteredContent();
 
   const [length, setLength] = useState<CutLength | null>(null);
   const [hairType, setHairType] = useState<HairType | null>(null);
@@ -55,7 +56,6 @@ export default function DiscoverScreen() {
 
   const header = (
     <View>
-      <Txt variant="title">Discover</Txt>
       <Txt variant="label" style={styles.subtitle}>
         Find styles that fit your hair and your routine.
       </Txt>
@@ -77,6 +77,7 @@ export default function DiscoverScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <TabHeader title="Discover" />
       <FlatList
         data={results}
         keyExtractor={(item) => item.id}
