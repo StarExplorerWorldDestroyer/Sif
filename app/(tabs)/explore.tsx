@@ -3,6 +3,7 @@ import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
+import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Screen } from '@/components/ui/screen';
 import { TabHeader } from '@/components/ui/tab-header';
@@ -146,16 +147,13 @@ export default function ExploreScreen() {
             <ActivityIndicator color={Palette.accent} />
           </View>
         ) : feed.length === 0 ? (
-          <View style={styles.center}>
-            <IconSymbol name="safari" size={48} color={Palette.textDim} />
-            <Txt variant="heading" style={styles.emptyTitle}>
-              Nothing here yet
-            </Txt>
-            <Txt variant="label" style={styles.emptyText}>
-              Public posts from the community will show up here. Make your profile public and post a
-              cut to be the first!
-            </Txt>
-          </View>
+          <EmptyState
+            icon="safari"
+            title="Nothing here yet"
+            subtitle="Public posts from the community show up here. Make your profile public and share a cut to be the first."
+            primaryLabel="Share a cut"
+            onPrimary={() => router.push('/add')}
+          />
         ) : (
           <View style={styles.grid}>
             {feed.map((post) => (
@@ -246,7 +244,6 @@ const styles = StyleSheet.create({
   },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxl },
   center: { alignItems: 'center', justifyContent: 'center', gap: Spacing.md, paddingVertical: Spacing.xxl * 2 },
-  emptyTitle: { color: Palette.textMuted },
   emptyText: { textAlign: 'center', maxWidth: 280, color: Palette.textMuted },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { paddingHorizontal: Spacing.xs, marginBottom: Spacing.lg },
