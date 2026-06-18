@@ -200,6 +200,8 @@ export type Booking = {
   status: BookingStatus;
   note: string;
   cancelReason: string;
+  /** What the stylist charged (0 when unset). Used for earnings. */
+  price: number;
   createdAt: string;
   /** The viewer's role in this booking. */
   role: 'client' | 'stylist';
