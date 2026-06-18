@@ -118,7 +118,8 @@ export type NotificationType =
   | 'booking_declined'
   | 'booking_cancelled'
   | 'booking_reminder'
-  | 'booking_rescheduled';
+  | 'booking_rescheduled'
+  | 'review_received';
 
 /** An in-app notification, with the acting user resolved for display. */
 export type AppNotification = {
@@ -147,7 +148,26 @@ export type PublicPost = {
 };
 
 /** A bookable stylist shown in the directory (search-card plus a short bio). */
-export type StylistCard = UserSearchResult & { bio: string };
+export type StylistCard = UserSearchResult & {
+  bio: string;
+  /** Average rating (1–5), or 0 when there are no reviews yet. */
+  ratingAvg: number;
+  /** Number of reviews backing the average. */
+  ratingCount: number;
+};
+
+/** A client's review of a completed booking, with its author resolved. */
+export type Review = {
+  id: string;
+  bookingId: string;
+  stylistId: string;
+  clientId: string;
+  rating: number;
+  body: string;
+  createdAt: string;
+  /** The reviewer, resolved for display. */
+  author: UserSearchResult;
+};
 
 /** A recurring weekly availability window for a stylist. */
 export type AvailabilityWindow = {
