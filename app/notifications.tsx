@@ -42,6 +42,14 @@ function message(n: AppNotification): string {
       return `${name} commented on your post`;
     case 'comment_reply':
       return `${name} replied to your comment`;
+    case 'booking_requested':
+      return `${name} requested a booking`;
+    case 'booking_confirmed':
+      return `${name} confirmed your booking`;
+    case 'booking_declined':
+      return `${name} declined your booking`;
+    case 'booking_cancelled':
+      return `${name} cancelled a booking`;
     default:
       return name;
   }
@@ -58,6 +66,11 @@ function href(n: AppNotification): string {
     case 'post_comment':
     case 'comment_reply':
       return n.entityId ? `/p/${n.entityId}` : '/';
+    case 'booking_requested':
+    case 'booking_confirmed':
+    case 'booking_declined':
+    case 'booking_cancelled':
+      return '/bookings';
     case 'connection_accepted':
     case 'follow':
       return n.actor?.username ? `/u/${n.actor.username}` : '/connections';
@@ -163,11 +176,13 @@ function Avatar({ uri, type }: { uri: string; type: AppNotification['type'] }) {
       ? 'heart.fill'
       : type === 'post_comment' || type === 'comment_reply'
         ? 'bubble.right'
-        : type === 'pending_cut' || type === 'post_tag'
-          ? 'scissors'
-          : type === 'follow'
-            ? 'person.fill'
-            : 'person.2.fill';
+        : type.startsWith('booking_')
+          ? 'calendar'
+          : type === 'pending_cut' || type === 'post_tag'
+            ? 'scissors'
+            : type === 'follow'
+              ? 'person.fill'
+              : 'person.2.fill';
   if (uri) return <Image source={{ uri }} style={styles.avatar} contentFit="cover" />;
   return (
     <View style={[styles.avatar, styles.avatarPlaceholder]}>

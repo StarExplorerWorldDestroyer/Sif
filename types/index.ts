@@ -112,7 +112,11 @@ export type NotificationType =
   | 'post_tag'
   | 'post_like'
   | 'post_comment'
-  | 'comment_reply';
+  | 'comment_reply'
+  | 'booking_requested'
+  | 'booking_confirmed'
+  | 'booking_declined'
+  | 'booking_cancelled';
 
 /** An in-app notification, with the acting user resolved for display. */
 export type AppNotification = {
@@ -138,6 +142,50 @@ export type PublicPost = {
   commentCount: number;
   /** Whether the current viewer has liked this post. */
   likedByMe: boolean;
+};
+
+/** A bookable stylist shown in the directory (search-card plus a short bio). */
+export type StylistCard = UserSearchResult & { bio: string };
+
+/** A recurring weekly availability window for a stylist. */
+export type AvailabilityWindow = {
+  id: string;
+  weekday: number; // 0 = Sunday … 6 = Saturday
+  startMin: number; // minutes from midnight
+  endMin: number;
+};
+
+/** A stylist's booking configuration. */
+export type BookingSettings = {
+  slotMinutes: number;
+  acceptsBookings: boolean;
+};
+
+export type BookingStatus = 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'completed';
+
+/** A booking between a client and a stylist, with the other party resolved. */
+export type Booking = {
+  id: string;
+  stylistId: string;
+  clientId: string;
+  startsAt: string;
+  durationMinutes: number;
+  status: BookingStatus;
+  note: string;
+  createdAt: string;
+  /** The viewer's role in this booking. */
+  role: 'client' | 'stylist';
+  /** The other participant (the stylist if you're the client, else the client). */
+  other: UserSearchResult;
+};
+
+/** A computed bookable time slot for a given day. */
+export type BookingSlot = {
+  /** Absolute ISO start time. */
+  iso: string;
+  /** Local time label, e.g. "9:30 AM". */
+  label: string;
+  taken: boolean;
 };
 
 /** A comment on a post, with its author resolved for display. */

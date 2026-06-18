@@ -137,6 +137,16 @@ export default function SettingsScreen() {
             </View>
             <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
           </Pressable>
+
+          <View style={styles.divider} />
+
+          <Pressable style={styles.actionRow} onPress={() => router.push('/bookings')}>
+            <View style={{ flex: 1 }}>
+              <Txt variant="body">Your bookings</Txt>
+              <Txt variant="caption">Appointments you’ve requested or received.</Txt>
+            </View>
+            <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+          </Pressable>
         </View>
 
         <SectionTitle>Privacy & safety</SectionTitle>
@@ -181,6 +191,19 @@ export default function SettingsScreen() {
               thumbColor={Palette.text}
             />
           </View>
+
+          {profile?.isStylist ? (
+            <>
+              <View style={styles.divider} />
+              <Pressable style={styles.actionRow} onPress={() => router.push('/availability')}>
+                <View style={{ flex: 1 }}>
+                  <Txt variant="body">Booking availability</Txt>
+                  <Txt variant="caption">Set your weekly hours and appointment length.</Txt>
+                </View>
+                <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+              </Pressable>
+            </>
+          ) : null}
         </View>
 
         <SectionTitle>Account</SectionTitle>
