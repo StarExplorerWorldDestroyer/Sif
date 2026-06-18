@@ -95,6 +95,7 @@ function RootNavigator() {
       <Stack.Screen name="p/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="likes/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="bookings" options={{ headerShown: false }} />
+      <Stack.Screen name="dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="book/[id]" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="availability" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="reset" options={{ headerShown: false }} />

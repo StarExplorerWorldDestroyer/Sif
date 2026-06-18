@@ -187,6 +187,11 @@ export async function updateBookingStatus(id: string, status: BookingStatus): Pr
   await supabase.from('bookings').update({ status }).eq('id', id);
 }
 
+/** Set what the stylist charged for a booking (used for earnings). */
+export async function updateBookingPrice(id: string, price: number): Promise<void> {
+  await supabase.from('bookings').update({ price }).eq('id', id);
+}
+
 /** Cancel a booking with an optional reason (visible to the other party). */
 export async function cancelBooking(id: string, reason: string): Promise<void> {
   await supabase
@@ -251,6 +256,7 @@ export async function fetchMyBookings(): Promise<Booking[]> {
       status: r.status as BookingStatus,
       note: r.note ?? '',
       cancelReason: r.cancel_reason ?? '',
+      price: Number(r.price ?? 0),
       createdAt: r.created_at,
       role,
       other: byId.get(otherId) ?? fallback(otherId),

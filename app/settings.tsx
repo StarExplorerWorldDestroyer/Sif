@@ -195,6 +195,14 @@ export default function SettingsScreen() {
           {profile?.isStylist ? (
             <>
               <View style={styles.divider} />
+              <Pressable style={styles.actionRow} onPress={() => router.push('/dashboard')}>
+                <View style={{ flex: 1 }}>
+                  <Txt variant="body">Stylist dashboard</Txt>
+                  <Txt variant="caption">Your ratings, schedule, clients, and earnings.</Txt>
+                </View>
+                <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+              </Pressable>
+              <View style={styles.divider} />
               <Pressable style={styles.actionRow} onPress={() => router.push('/availability')}>
                 <View style={{ flex: 1 }}>
                   <Txt variant="body">Booking availability</Txt>

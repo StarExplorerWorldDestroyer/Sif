@@ -131,6 +131,15 @@ export default function ProfileScreen() {
             </Txt>
           </Pressable>
         </View>
+
+        {profile?.isStylist ? (
+          <Pressable style={styles.dashboardButton} onPress={() => router.push('/dashboard')}>
+            <IconSymbol name="chart.bar" size={16} color={Palette.black} />
+            <Txt variant="label" color={Palette.black} style={{ fontWeight: '600' }}>
+              Stylist dashboard
+            </Txt>
+          </Pressable>
+        ) : null}
       </View>
 
         <View style={styles.highlights}>
@@ -160,6 +169,16 @@ const styles = StyleSheet.create({
   statCountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
   badge: { width: 8, height: 8, borderRadius: 4, backgroundColor: Palette.accent, marginTop: 4 },
   actionRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg },
+  dashboardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.accent,
+  },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
