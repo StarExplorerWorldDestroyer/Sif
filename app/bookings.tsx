@@ -53,6 +53,14 @@ export default function BookingsScreen() {
     [load],
   );
 
+  const createCut = useCallback(
+    (b: Booking) => {
+      const name = b.other.username ?? b.other.displayName;
+      router.push(`/add?clientId=${b.clientId}&clientName=${encodeURIComponent(name)}`);
+    },
+    [router],
+  );
+
   const now = Date.now();
   const requests = bookings.filter((b) => b.role === 'stylist' && b.status === 'pending');
   const upcoming = bookings.filter(
@@ -91,21 +99,21 @@ export default function BookingsScreen() {
           {requests.length > 0 ? (
             <Section title="Requests">
               {requests.map((b) => (
-                <BookingCard key={b.id} booking={b} onAct={act} />
+                <BookingCard key={b.id} booking={b} onAct={act} onCreateCut={createCut} />
               ))}
             </Section>
           ) : null}
           {upcoming.length > 0 ? (
             <Section title="Upcoming">
               {upcoming.map((b) => (
-                <BookingCard key={b.id} booking={b} onAct={act} />
+                <BookingCard key={b.id} booking={b} onAct={act} onCreateCut={createCut} />
               ))}
             </Section>
           ) : null}
           {past.length > 0 ? (
             <Section title="Past & closed">
               {past.map((b) => (
-                <BookingCard key={b.id} booking={b} onAct={act} />
+                <BookingCard key={b.id} booking={b} onAct={act} onCreateCut={createCut} />
               ))}
             </Section>
           ) : null}
@@ -129,9 +137,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function BookingCard({
   booking,
   onAct,
+  onCreateCut,
 }: {
   booking: Booking;
   onAct: (id: string, status: BookingStatus) => void;
+  onCreateCut: (booking: Booking) => void;
 }) {
   const { other, role, status } = booking;
   const name = other.displayName || (other.username ? `@${other.username}` : 'Sif user');
@@ -139,6 +149,7 @@ function BookingCard({
   const canCancel = role === 'client' && (status === 'pending' || status === 'confirmed') && isFuture;
   const canRespond = role === 'stylist' && status === 'pending';
   const canComplete = role === 'stylist' && status === 'confirmed' && !isFuture;
+  const canCreateCut = role === 'stylist' && (status === 'confirmed' || status === 'completed');
 
   return (
     <View style={styles.card}>
@@ -169,7 +180,7 @@ function BookingCard({
         </Txt>
       ) : null}
 
-      {canRespond || canCancel || canComplete ? (
+      {canRespond || canCancel || canComplete || canCreateCut ? (
         <View style={styles.actions}>
           {canRespond ? (
             <>
@@ -189,6 +200,13 @@ function BookingCard({
             <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => onAct(booking.id, 'completed')}>
               <Txt variant="label" color={Palette.black} style={{ fontWeight: '600' }}>
                 Mark done
+              </Txt>
+            </Pressable>
+          ) : null}
+          {canCreateCut ? (
+            <Pressable style={styles.btn} onPress={() => onCreateCut(booking)}>
+              <Txt variant="label" color={Palette.text}>
+                Create the cut
               </Txt>
             </Pressable>
           ) : null}
