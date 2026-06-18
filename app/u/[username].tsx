@@ -146,7 +146,9 @@ export default function PublicProfileScreen() {
 
             {card.isStylist ? <StylistHours stylistId={card.id} /> : null}
 
-            {card.isStylist ? <StylistReviews stylistId={card.id} /> : null}
+            {card.isStylist ? (
+              <StylistReviews stylistId={card.id} canReply={profile?.id === card.id} />
+            ) : null}
 
             {profile?.isStylist && connectionStatus(card.id) === 'connected' ? (
               <Pressable

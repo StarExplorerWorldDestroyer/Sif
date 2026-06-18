@@ -15,7 +15,7 @@ const fallbackCard = (id: string): UserSearchResult => ({
 export async function fetchStylistReviews(stylistId: string): Promise<Review[]> {
   const { data } = await supabase
     .from('stylist_reviews')
-    .select('id, booking_id, stylist_id, client_id, rating, body, created_at')
+    .select('id, booking_id, stylist_id, client_id, rating, body, created_at, reply, reply_at')
     .eq('stylist_id', stylistId)
     .order('created_at', { ascending: false });
   const rows = data ?? [];
@@ -33,7 +33,18 @@ export async function fetchStylistReviews(stylistId: string): Promise<Review[]> 
     body: r.body ?? '',
     createdAt: r.created_at,
     author: byId.get(r.client_id) ?? fallbackCard(r.client_id),
+    reply: r.reply ?? '',
+    replyAt: r.reply_at ?? null,
   }));
+}
+
+/** Stylist posts or clears a reply to one of their reviews. */
+export async function replyToReview(reviewId: string, reply: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc('set_review_reply', {
+    p_review_id: reviewId,
+    p_reply: reply,
+  });
+  return { error: error?.message ?? null };
 }
 
 /** The current user's reviews keyed by booking id (to know what's reviewed). */

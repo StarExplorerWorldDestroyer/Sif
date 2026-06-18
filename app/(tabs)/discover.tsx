@@ -142,6 +142,8 @@ function ModeTab({ label, active, onPress }: { label: string; active: boolean; o
   );
 }
 
+type StylistSort = 'rating' | 'name';
+
 function StylistDirectory({
   centered,
   onOpen,
@@ -150,6 +152,7 @@ function StylistDirectory({
   onOpen: (username: string) => void;
 }) {
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<StylistSort>('rating');
   const [stylists, setStylists] = useState<StylistCard[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -169,6 +172,18 @@ function StylistDirectory({
     };
   }, [query]);
 
+  const sorted = useMemo(() => {
+    const list = [...stylists];
+    if (sort === 'name') {
+      return list.sort((a, b) =>
+        (a.displayName || a.username || '').localeCompare(b.displayName || b.username || ''),
+      );
+    }
+    return list.sort(
+      (a, b) => b.ratingAvg - a.ratingAvg || b.ratingCount - a.ratingCount,
+    );
+  }, [stylists, sort]);
+
   return (
     <ScrollView
       contentContainerStyle={[styles.content, centered]}
@@ -187,11 +202,16 @@ function StylistDirectory({
         />
       </View>
 
+      <View style={styles.sortRow}>
+        <Chip label="Top rated" active={sort === 'rating'} onPress={() => setSort('rating')} />
+        <Chip label="Name" active={sort === 'name'} onPress={() => setSort('name')} />
+      </View>
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={Palette.accent} />
         </View>
-      ) : stylists.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <EmptyState
           icon="scissors"
           title="No stylists yet"
@@ -202,7 +222,7 @@ function StylistDirectory({
           }
         />
       ) : (
-        stylists.map((s) => (
+        sorted.map((s) => (
           <Pressable
             key={s.id}
             style={styles.stylistRow}
@@ -338,6 +358,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   searchInput: { flex: 1, color: Palette.text, fontSize: 15, paddingVertical: 2 },
+  sortRow: { flexDirection: 'row', gap: Spacing.xs, marginBottom: Spacing.md },
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xxl },
   stylistRow: {
     flexDirection: 'row',
