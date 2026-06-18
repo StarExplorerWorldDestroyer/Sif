@@ -87,10 +87,12 @@ export default function AddHaircutScreen() {
       }
       if (editing) {
         await updateHaircut(editing.id, input);
+        router.back();
       } else {
         await addHaircut(input);
+        // Offer to set a reminder for the next cut, seeded from this cut's date.
+        router.replace({ pathname: '/reminder', params: { postcut: '1', from: date } });
       }
-      router.back();
     } catch (e) {
       setSaving(false);
       Alert.alert('Could not save', 'Something went wrong saving your haircut. Please try again.');

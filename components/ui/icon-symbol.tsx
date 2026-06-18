@@ -52,6 +52,7 @@ const MAPPING = {
   'clock': 'schedule',
   'chart.bar': 'bar-chart',
   'calendar': 'event',
+  'minus': 'remove',
 } as IconMapping;
 
 /**
