@@ -1,11 +1,38 @@
 import { fetchMyBookings } from '@/lib/bookings';
 import { fetchStylistReviews } from '@/lib/reviews';
+import { supabase } from '@/lib/supabase';
 import type { Booking, Review } from '@/types';
 
-/** One month's worth of completed-appointment activity. */
-export type MonthBucket = { key: string; label: string; appts: number; revenue: number };
+/** One month's worth of earnings activity (for the trend chart). */
+export type MonthBucket = { key: string; label: string; cuts: number; revenue: number };
 
-/** Everything the stylist dashboard needs, derived from bookings + reviews. */
+/** A single cut credited to the stylist, reduced to earnings fields. */
+export type EarningCut = { date: string; price: number; tip: number; cutType: string };
+
+/** Time window the earnings/service stats are scoped to. */
+export type DateRange = 'month' | 'quarter' | 'year' | 'all';
+
+export const DATE_RANGES: { value: DateRange; label: string }[] = [
+  { value: 'month', label: 'This month' },
+  { value: 'quarter', label: 'Quarter' },
+  { value: 'year', label: 'Year' },
+  { value: 'all', label: 'All time' },
+];
+
+/** Revenue grouped by cut type. */
+export type ServiceBucket = { cutType: string; revenue: number; count: number };
+
+/** Earnings figures for a chosen date range. */
+export type RangeStats = {
+  earned: number; // service + tips
+  service: number;
+  tips: number;
+  count: number; // cuts performed in range
+  avg: number; // earned / count
+  byService: ServiceBucket[];
+};
+
+/** Everything the stylist dashboard needs that doesn't depend on the range. */
 export type StylistDashboard = {
   // Ratings
   ratingAvg: number;
@@ -19,26 +46,21 @@ export type StylistDashboard = {
   pending: Booking[];
   upcoming: Booking[];
   completedCount: number;
-  cancelledCount: number;
-  declinedCount: number;
-  responseRate: number; // 0..1, requests you didn't leave hanging
-  completionRate: number; // 0..1, confirmed appts that got completed
-
-  // Activity
-  apptThisMonth: number;
-  apptLastMonth: number;
-  monthly: MonthBucket[]; // oldest → newest, last 6 months
+  responseRate: number; // 0..1
+  completionRate: number; // 0..1
 
   // Clients
   uniqueClients: number;
   repeatClients: number;
   topClient: { name: string; count: number } | null;
 
-  // Earnings
-  totalRevenue: number;
-  avgRevenue: number;
-  completed: Booking[]; // completed appts, newest first (for pricing)
-  unpricedCount: number;
+  // Earnings (all-time + 6-month trend)
+  earnedAllTime: number;
+  cutsAllTime: number;
+  monthly: MonthBucket[];
+
+  // Raw cuts, for range-filtered stats computed on the client.
+  cuts: EarningCut[];
 };
 
 function monthKey(d: Date): string {
@@ -49,8 +71,58 @@ function clientName(b: Booking): string {
   return b.other.displayName || (b.other.username ? `@${b.other.username}` : 'Sif user');
 }
 
-/** Pure aggregation over a stylist's bookings (role === 'stylist') + reviews. */
-export function computeStylistDashboard(bookings: Booking[], reviews: Review[]): StylistDashboard {
+/** Inclusive lower bound (local time) for a date range; null = no bound. */
+export function rangeStart(range: DateRange, now = new Date()): Date | null {
+  switch (range) {
+    case 'month':
+      return new Date(now.getFullYear(), now.getMonth(), 1);
+    case 'quarter':
+      return new Date(now.getFullYear(), now.getMonth() - (now.getMonth() % 3), 1);
+    case 'year':
+      return new Date(now.getFullYear(), 0, 1);
+    case 'all':
+      return null;
+  }
+}
+
+/** Earnings + service breakdown for cuts within the chosen range. */
+export function rangeStats(cuts: EarningCut[], range: DateRange, now = new Date()): RangeStats {
+  const start = rangeStart(range, now);
+  const startMs = start ? start.getTime() : -Infinity;
+  const inRange = cuts.filter((c) => {
+    const t = new Date(`${c.date}T00:00:00`).getTime();
+    return Number.isFinite(t) && t >= startMs;
+  });
+
+  let service = 0;
+  let tips = 0;
+  const byTypeMap = new Map<string, ServiceBucket>();
+  for (const c of inRange) {
+    service += c.price;
+    tips += c.tip;
+    const type = c.cutType || 'Haircut';
+    const bucket = byTypeMap.get(type) ?? { cutType: type, revenue: 0, count: 0 };
+    bucket.revenue += c.price + c.tip;
+    bucket.count += 1;
+    byTypeMap.set(type, bucket);
+  }
+  const earned = service + tips;
+  return {
+    earned,
+    service,
+    tips,
+    count: inRange.length,
+    avg: inRange.length > 0 ? earned / inRange.length : 0,
+    byService: [...byTypeMap.values()].sort((a, b) => b.revenue - a.revenue),
+  };
+}
+
+/** Pure aggregation over a stylist's bookings (role === 'stylist'), reviews, and cuts. */
+export function computeStylistDashboard(
+  bookings: Booking[],
+  reviews: Review[],
+  cuts: EarningCut[],
+): StylistDashboard {
   const now = Date.now();
 
   // ----- Ratings -----
@@ -74,11 +146,8 @@ export function computeStylistDashboard(bookings: Booking[], reviews: Review[]):
   const upcoming = bookings
     .filter((b) => b.status === 'confirmed' && new Date(b.startsAt).getTime() >= now)
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
-  const completed = bookings
-    .filter((b) => b.status === 'completed')
-    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
+  const completed = bookings.filter((b) => b.status === 'completed');
   const cancelledCount = bookings.filter((b) => b.status === 'cancelled').length;
-  const declinedCount = bookings.filter((b) => b.status === 'declined').length;
 
   const handled = bookings.filter((b) => b.status !== 'pending').length;
   const missed = bookings.filter(
@@ -88,31 +157,6 @@ export function computeStylistDashboard(bookings: Booking[], reviews: Review[]):
 
   const completionEligible = completed.length + cancelledCount;
   const completionRate = completionEligible > 0 ? completed.length / completionEligible : 1;
-
-  // ----- Activity (last 6 months by completed appt date) -----
-  const monthly: MonthBucket[] = [];
-  const base = new Date();
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
-    monthly.push({
-      key: monthKey(d),
-      label: d.toLocaleDateString('en-US', { month: 'short' }),
-      appts: 0,
-      revenue: 0,
-    });
-  }
-  const monthByKey = new Map(monthly.map((m) => [m.key, m]));
-  for (const b of completed) {
-    const bucket = monthByKey.get(monthKey(new Date(b.startsAt)));
-    if (bucket) {
-      bucket.appts += 1;
-      bucket.revenue += b.price;
-    }
-  }
-  const thisKey = monthKey(new Date(base.getFullYear(), base.getMonth(), 1));
-  const lastKey = monthKey(new Date(base.getFullYear(), base.getMonth() - 1, 1));
-  const apptThisMonth = monthByKey.get(thisKey)?.appts ?? 0;
-  const apptLastMonth = monthByKey.get(lastKey)?.appts ?? 0;
 
   // ----- Clients (real ones: confirmed or completed) -----
   const counts = new Map<string, { name: string; count: number }>();
@@ -126,14 +170,30 @@ export function computeStylistDashboard(bookings: Booking[], reviews: Review[]):
   const uniqueClients = clientEntries.length;
   const repeatClients = clientEntries.filter((c) => c.count >= 2).length;
   const topClient =
-    clientEntries.length > 0
-      ? clientEntries.reduce((a, b) => (b.count > a.count ? b : a))
-      : null;
+    clientEntries.length > 0 ? clientEntries.reduce((a, b) => (b.count > a.count ? b : a)) : null;
 
-  // ----- Earnings -----
-  const totalRevenue = completed.reduce((s, b) => s + b.price, 0);
-  const avgRevenue = completed.length > 0 ? totalRevenue / completed.length : 0;
-  const unpricedCount = completed.filter((b) => b.price <= 0).length;
+  // ----- Earnings trend (last 6 months from performed cuts) -----
+  const monthly: MonthBucket[] = [];
+  const base = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+    monthly.push({
+      key: monthKey(d),
+      label: d.toLocaleDateString('en-US', { month: 'short' }),
+      cuts: 0,
+      revenue: 0,
+    });
+  }
+  const monthByKey = new Map(monthly.map((m) => [m.key, m]));
+  let earnedAllTime = 0;
+  for (const c of cuts) {
+    earnedAllTime += c.price + c.tip;
+    const bucket = monthByKey.get(monthKey(new Date(`${c.date}T00:00:00`)));
+    if (bucket) {
+      bucket.cuts += 1;
+      bucket.revenue += c.price + c.tip;
+    }
+  }
 
   return {
     ratingAvg,
@@ -144,31 +204,39 @@ export function computeStylistDashboard(bookings: Booking[], reviews: Review[]):
     pending,
     upcoming,
     completedCount: completed.length,
-    cancelledCount,
-    declinedCount,
     responseRate,
     completionRate,
-    apptThisMonth,
-    apptLastMonth,
-    monthly,
     uniqueClients,
     repeatClients,
     topClient,
-    totalRevenue,
-    avgRevenue,
-    completed,
-    unpricedCount,
+    earnedAllTime,
+    cutsAllTime: cuts.length,
+    monthly,
+    cuts,
   };
+}
+
+/** Earnings rows for every cut credited to the current stylist. */
+async function fetchEarningCuts(): Promise<EarningCut[]> {
+  const { data } = await supabase.rpc('stylist_earnings');
+  return (data ?? []).map((r: any) => ({
+    date: r.cut_date,
+    price: Number(r.price ?? 0),
+    tip: Number(r.tip ?? 0),
+    cutType: r.cut_type ?? 'Haircut',
+  }));
 }
 
 /** Fetch + aggregate the dashboard for the given stylist (the current user). */
 export async function fetchStylistDashboard(stylistId: string): Promise<StylistDashboard> {
-  const [bookings, reviews] = await Promise.all([
+  const [bookings, reviews, cuts] = await Promise.all([
     fetchMyBookings(),
     fetchStylistReviews(stylistId),
+    fetchEarningCuts(),
   ]);
   return computeStylistDashboard(
     bookings.filter((b) => b.role === 'stylist'),
     reviews,
+    cuts,
   );
 }
