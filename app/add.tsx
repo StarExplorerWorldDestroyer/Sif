@@ -14,15 +14,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PhotoEditor } from '@/components/photos/photo-editor';
 import { StylistAutocomplete } from '@/components/social/stylist-autocomplete';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { Field } from '@/components/ui/field';
 import { TagInput } from '@/components/ui/tag-input';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { toISODate } from '@/lib/reminders';
 import { useHaircuts } from '@/store/haircuts';
 import type { Photo } from '@/types';
 
-const today = new Date().toISOString().slice(0, 10);
+const today = toISODate(new Date());
 
 export default function AddHaircutScreen() {
   const router = useRouter();
@@ -93,7 +95,7 @@ export default function AddHaircutScreen() {
         // Offer to set a reminder for the next cut, seeded from this cut's date.
         router.replace({ pathname: '/reminder', params: { postcut: '1', from: date } });
       }
-    } catch (e) {
+    } catch {
       setSaving(false);
       Alert.alert('Could not save', 'Something went wrong saving your haircut. Please try again.');
     }
@@ -167,13 +169,7 @@ export default function AddHaircutScreen() {
             onChangeName={setStylistName}
             onPick={(s) => setStylistId(s?.id ?? null)}
           />
-          <Field
-            label="Date"
-            placeholder="YYYY-MM-DD"
-            value={date}
-            onChangeText={setDate}
-            autoCapitalize="none"
-          />
+          <DatePickerField label="Date" value={date} onChange={setDate} />
 
           <View style={styles.row}>
             <View style={styles.half}>

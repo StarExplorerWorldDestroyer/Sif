@@ -3,14 +3,16 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { FontSize, Palette, Radius, Spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/format';
+import { toISODate } from '@/lib/reminders';
 import { useHaircuts } from '@/store/haircuts';
 import type { HaircutUpdate } from '@/types';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => toISODate(new Date());
 
 /**
  * A follow-up timeline for a haircut: add dated photos + notes to track how it
@@ -138,13 +140,11 @@ export function UpdateTimeline({ haircutId }: { haircutId: string }) {
 
         {uri ? (
           <View style={styles.fields}>
-            <TextInput
+            <DatePickerField
+              label="Date taken"
               value={takenOn}
-              onChangeText={setTakenOn}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={Palette.textDim}
-              autoCapitalize="none"
-              style={styles.input}
+              onChange={setTakenOn}
+              style={styles.dateField}
             />
             <TextInput
               value={note}
@@ -211,6 +211,7 @@ const styles = StyleSheet.create({
   },
   preview: { width: '100%', height: 180, borderRadius: Radius.md, backgroundColor: Palette.surfaceAlt },
   fields: { gap: Spacing.sm, marginTop: Spacing.sm },
+  dateField: { marginBottom: 0 },
   input: {
     backgroundColor: Palette.surfaceAlt,
     borderRadius: Radius.md,
