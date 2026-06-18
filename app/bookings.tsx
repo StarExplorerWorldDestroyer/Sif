@@ -1,14 +1,22 @@
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
-import { fetchMyBookings, updateBookingStatus } from '@/lib/bookings';
+import { cancelBooking, fetchMyBookings, updateBookingStatus } from '@/lib/bookings';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import type { Booking, BookingStatus } from '@/types';
 
@@ -32,6 +40,8 @@ export default function BookingsScreen() {
   const centered = useCenteredContent(640);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
+  const [cancelReasonText, setCancelReasonText] = useState('');
 
   const load = useCallback(async () => {
     setBookings(await fetchMyBookings());
@@ -60,6 +70,24 @@ export default function BookingsScreen() {
     },
     [router],
   );
+
+  const reschedule = useCallback(
+    (b: Booking) => router.push(`/book/${b.stylistId}?reschedule=${b.id}`),
+    [router],
+  );
+
+  const confirmCancel = useCallback(async () => {
+    if (!cancelTarget) return;
+    const id = cancelTarget.id;
+    const reason = cancelReasonText;
+    setBookings((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, status: 'cancelled', cancelReason: reason.trim() } : b)),
+    );
+    setCancelTarget(null);
+    setCancelReasonText('');
+    await cancelBooking(id, reason);
+    load();
+  }, [cancelTarget, cancelReasonText, load]);
 
   const now = Date.now();
   const requests = bookings.filter((b) => b.role === 'stylist' && b.status === 'pending');
@@ -99,26 +127,84 @@ export default function BookingsScreen() {
           {requests.length > 0 ? (
             <Section title="Requests">
               {requests.map((b) => (
-                <BookingCard key={b.id} booking={b} onAct={act} onCreateCut={createCut} />
+                <BookingCard
+                  key={b.id}
+                  booking={b}
+                  onAct={act}
+                  onCreateCut={createCut}
+                  onReschedule={reschedule}
+                  onCancel={setCancelTarget}
+                />
               ))}
             </Section>
           ) : null}
           {upcoming.length > 0 ? (
             <Section title="Upcoming">
               {upcoming.map((b) => (
-                <BookingCard key={b.id} booking={b} onAct={act} onCreateCut={createCut} />
+                <BookingCard
+                  key={b.id}
+                  booking={b}
+                  onAct={act}
+                  onCreateCut={createCut}
+                  onReschedule={reschedule}
+                  onCancel={setCancelTarget}
+                />
               ))}
             </Section>
           ) : null}
           {past.length > 0 ? (
             <Section title="Past & closed">
               {past.map((b) => (
-                <BookingCard key={b.id} booking={b} onAct={act} onCreateCut={createCut} />
+                <BookingCard
+                  key={b.id}
+                  booking={b}
+                  onAct={act}
+                  onCreateCut={createCut}
+                  onReschedule={reschedule}
+                  onCancel={setCancelTarget}
+                />
               ))}
             </Section>
           ) : null}
         </ScrollView>
       )}
+
+      <Modal
+        visible={!!cancelTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCancelTarget(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setCancelTarget(null)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Txt variant="heading">Cancel booking?</Txt>
+            <Txt variant="label" color={Palette.textMuted} style={{ marginTop: Spacing.xs }}>
+              {cancelTarget
+                ? `With ${cancelTarget.other.displayName || (cancelTarget.other.username ? `@${cancelTarget.other.username}` : 'this person')}. Add an optional reason they'll see.`
+                : ''}
+            </Txt>
+            <TextInput
+              value={cancelReasonText}
+              onChangeText={setCancelReasonText}
+              placeholder="Reason (optional)"
+              placeholderTextColor={Palette.textDim}
+              style={styles.reasonInput}
+              multiline
+            />
+            <View style={styles.modalActions}>
+              <Pressable style={styles.btn} onPress={() => setCancelTarget(null)}>
+                <Txt variant="label" color={Palette.text}>
+                  Keep it
+                </Txt>
+              </Pressable>
+              <Pressable style={[styles.btn, styles.btnDanger]} onPress={confirmCancel}>
+                <Txt variant="label" color={Palette.black} style={{ fontWeight: '600' }}>
+                  Cancel booking
+                </Txt>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -138,18 +224,27 @@ function BookingCard({
   booking,
   onAct,
   onCreateCut,
+  onReschedule,
+  onCancel,
 }: {
   booking: Booking;
   onAct: (id: string, status: BookingStatus) => void;
   onCreateCut: (booking: Booking) => void;
+  onReschedule: (booking: Booking) => void;
+  onCancel: (booking: Booking) => void;
 }) {
   const { other, role, status } = booking;
   const name = other.displayName || (other.username ? `@${other.username}` : 'Sif user');
   const isFuture = new Date(booking.startsAt).getTime() >= Date.now();
-  const canCancel = role === 'client' && (status === 'pending' || status === 'confirmed') && isFuture;
+  const active = status === 'pending' || status === 'confirmed';
   const canRespond = role === 'stylist' && status === 'pending';
   const canComplete = role === 'stylist' && status === 'confirmed' && !isFuture;
   const canCreateCut = role === 'stylist' && (status === 'confirmed' || status === 'completed');
+  // Clients can reschedule/cancel their active future bookings; stylists can
+  // cancel a confirmed future booking (they decline while it's still pending).
+  const canReschedule = role === 'client' && active && isFuture;
+  const canCancel =
+    isFuture && ((role === 'client' && active) || (role === 'stylist' && status === 'confirmed'));
 
   return (
     <View style={styles.card}>
@@ -180,7 +275,13 @@ function BookingCard({
         </Txt>
       ) : null}
 
-      {canRespond || canCancel || canComplete || canCreateCut ? (
+      {status === 'cancelled' && booking.cancelReason ? (
+        <Txt variant="caption" color={Palette.textMuted} style={styles.note}>
+          Reason: {booking.cancelReason}
+        </Txt>
+      ) : null}
+
+      {canRespond || canCancel || canComplete || canCreateCut || canReschedule ? (
         <View style={styles.actions}>
           {canRespond ? (
             <>
@@ -210,8 +311,15 @@ function BookingCard({
               </Txt>
             </Pressable>
           ) : null}
+          {canReschedule ? (
+            <Pressable style={styles.btn} onPress={() => onReschedule(booking)}>
+              <Txt variant="label" color={Palette.text}>
+                Reschedule
+              </Txt>
+            </Pressable>
+          ) : null}
           {canCancel ? (
-            <Pressable style={styles.btn} onPress={() => onAct(booking.id, 'cancelled')}>
+            <Pressable style={styles.btn} onPress={() => onCancel(booking)}>
               <Txt variant="label" color={Palette.text}>
                 Cancel
               </Txt>
@@ -259,4 +367,33 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surfaceAlt,
   },
   btnPrimary: { backgroundColor: Palette.accent, borderColor: Palette.accent },
+  btnDanger: { backgroundColor: Palette.accent, borderColor: Palette.accent },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  sheet: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    padding: Spacing.lg,
+  },
+  reasonInput: {
+    color: Palette.text,
+    fontSize: 15,
+    backgroundColor: Palette.surfaceAlt,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    minHeight: 70,
+    textAlignVertical: 'top',
+    marginTop: Spacing.md,
+  },
+  modalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg, justifyContent: 'flex-end' },
 });

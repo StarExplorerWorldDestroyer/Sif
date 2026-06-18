@@ -117,7 +117,8 @@ export type NotificationType =
   | 'booking_confirmed'
   | 'booking_declined'
   | 'booking_cancelled'
-  | 'booking_reminder';
+  | 'booking_reminder'
+  | 'booking_rescheduled';
 
 /** An in-app notification, with the acting user resolved for display. */
 export type AppNotification = {
@@ -173,6 +174,7 @@ export type Booking = {
   durationMinutes: number;
   status: BookingStatus;
   note: string;
+  cancelReason: string;
   createdAt: string;
   /** The viewer's role in this booking. */
   role: 'client' | 'stylist';

@@ -52,6 +52,8 @@ function message(n: AppNotification): string {
       return `${name} cancelled a booking`;
     case 'booking_reminder':
       return `Upcoming appointment with ${name}`;
+    case 'booking_rescheduled':
+      return `${name} rescheduled a booking`;
     default:
       return name;
   }
@@ -73,6 +75,7 @@ function href(n: AppNotification): string {
     case 'booking_declined':
     case 'booking_cancelled':
     case 'booking_reminder':
+    case 'booking_rescheduled':
       return '/bookings';
     case 'connection_accepted':
     case 'follow':

@@ -22,6 +22,7 @@ import {
   fetchBookingSettings,
   fetchStylistCard,
   fetchTakenSlots,
+  rescheduleBooking,
 } from '@/lib/bookings';
 import { toISODate } from '@/lib/reminders';
 import { useCenteredContent } from '@/hooks/use-responsive';
@@ -31,7 +32,8 @@ import type { AvailabilityWindow, BookingSlot, BookingSettings, StylistCard } fr
 export default function BookScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, reschedule } = useLocalSearchParams<{ id: string; reschedule?: string }>();
+  const isReschedule = !!reschedule;
   const centered = useCenteredContent(560);
 
   const [stylist, setStylist] = useState<StylistCard | null>(null);
@@ -89,6 +91,20 @@ export default function BookScreen() {
     }
     if (!selected || !settings || submitting) return;
     setSubmitting(true);
+
+    if (isReschedule && reschedule) {
+      const { error } = await rescheduleBooking(reschedule, selected);
+      setSubmitting(false);
+      if (!error) {
+        Alert.alert('Booking moved', 'Your appointment was rescheduled and sent for confirmation.');
+        router.replace('/bookings');
+      } else {
+        Alert.alert('Could not reschedule', error);
+        loadSlots();
+      }
+      return;
+    }
+
     const { id: bookingId, error } = await createBooking(
       id,
       selected,
@@ -103,7 +119,7 @@ export default function BookScreen() {
       Alert.alert('Could not book', error ?? 'Something went wrong.');
       loadSlots();
     }
-  }, [user, router, selected, settings, submitting, id, note, loadSlots]);
+  }, [user, router, selected, settings, submitting, id, note, loadSlots, isReschedule, reschedule]);
 
   const name = stylist?.displayName || stylist?.username || 'this stylist';
 
@@ -113,7 +129,7 @@ export default function BookScreen() {
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <IconSymbol name="chevron.left" size={26} color={Palette.text} />
         </Pressable>
-        <Txt variant="heading">Book</Txt>
+        <Txt variant="heading">{isReschedule ? 'Reschedule' : 'Book'}</Txt>
         <View style={{ width: 26 }} />
       </View>
 
@@ -131,8 +147,8 @@ export default function BookScreen() {
       ) : (
         <ScrollView contentContainerStyle={[styles.content, centered]} keyboardShouldPersistTaps="handled">
           <Txt variant="body" style={styles.lead}>
-            Request a time with <Txt variant="label" color={Palette.accent}>{name}</Txt>. They’ll
-            confirm or decline.
+            {isReschedule ? 'Pick a new time with ' : 'Request a time with '}
+            <Txt variant="label" color={Palette.accent}>{name}</Txt>. They’ll confirm or decline.
           </Txt>
 
           <DatePickerField
@@ -180,17 +196,21 @@ export default function BookScreen() {
             </View>
           )}
 
-          <Txt variant="label" style={styles.sectionLabel}>
-            Note (optional)
-          </Txt>
-          <TextInput
-            value={note}
-            onChangeText={setNote}
-            placeholder="What are you looking for? Any references?"
-            placeholderTextColor={Palette.textDim}
-            style={styles.input}
-            multiline
-          />
+          {isReschedule ? null : (
+            <>
+              <Txt variant="label" style={styles.sectionLabel}>
+                Note (optional)
+              </Txt>
+              <TextInput
+                value={note}
+                onChangeText={setNote}
+                placeholder="What are you looking for? Any references?"
+                placeholderTextColor={Palette.textDim}
+                style={styles.input}
+                multiline
+              />
+            </>
+          )}
 
           <Pressable
             style={[styles.submit, (!selected || submitting) && styles.submitDisabled]}
@@ -200,7 +220,7 @@ export default function BookScreen() {
               <ActivityIndicator color={Palette.black} />
             ) : (
               <Txt variant="label" color={Palette.black} style={{ fontWeight: '600' }}>
-                Request booking
+                {isReschedule ? 'Reschedule' : 'Request booking'}
               </Txt>
             )}
           </Pressable>

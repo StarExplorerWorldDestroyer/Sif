@@ -182,6 +182,33 @@ export async function updateBookingStatus(id: string, status: BookingStatus): Pr
   await supabase.from('bookings').update({ status }).eq('id', id);
 }
 
+/** Cancel a booking with an optional reason (visible to the other party). */
+export async function cancelBooking(id: string, reason: string): Promise<void> {
+  await supabase
+    .from('bookings')
+    .update({ status: 'cancelled', cancel_reason: reason.trim() })
+    .eq('id', id);
+}
+
+/**
+ * Move a booking to a new time. Resets it to pending (re-confirmation needed)
+ * and clears the reminder flag. Returns an error if the new slot is taken.
+ */
+export async function rescheduleBooking(
+  id: string,
+  startsAtISO: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('bookings')
+    .update({ starts_at: startsAtISO, status: 'pending', reminder_sent: false })
+    .eq('id', id);
+  if (error) {
+    const taken = error.code === '23505';
+    return { error: taken ? 'That time was just booked. Pick another slot.' : error.message };
+  }
+  return { error: null };
+}
+
 /** All bookings involving the current user, with the other party resolved. */
 export async function fetchMyBookings(): Promise<Booking[]> {
   const { data: auth } = await supabase.auth.getUser();
@@ -218,6 +245,7 @@ export async function fetchMyBookings(): Promise<Booking[]> {
       durationMinutes: r.duration_minutes,
       status: r.status as BookingStatus,
       note: r.note ?? '',
+      cancelReason: r.cancel_reason ?? '',
       createdAt: r.created_at,
       role,
       other: byId.get(otherId) ?? fallback(otherId),
