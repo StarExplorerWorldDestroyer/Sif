@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
@@ -33,12 +33,14 @@ export function DatePickerField({
   value,
   onChange,
   minimumDate,
+  style,
 }: {
-  label: string;
+  label?: string;
   value: string;
   onChange: (iso: string) => void;
   /** Optional ISO date; earlier days are shown disabled. */
   minimumDate?: string;
+  style?: StyleProp<ViewStyle>;
 }) {
   const [open, setOpen] = useState(false);
   const selected = useMemo(() => parseLocal(value), [value]);
@@ -68,10 +70,12 @@ export function DatePickerField({
   }
 
   return (
-    <View style={styles.wrap}>
-      <Txt variant="label" style={styles.label}>
-        {label}
-      </Txt>
+    <View style={[styles.wrap, style]}>
+      {label ? (
+        <Txt variant="label" style={styles.label}>
+          {label}
+        </Txt>
+      ) : null}
       <Pressable style={styles.field} onPress={() => setOpen(true)}>
         <Txt variant="body" color={selected ? Palette.text : Palette.textDim}>
           {selected ? formatReminderDate(selected) : 'Pick a date'}
