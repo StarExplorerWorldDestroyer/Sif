@@ -69,8 +69,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setLoading(true);
+    // Generate any due booking reminders, then load. The insert streams back via
+    // the realtime subscription below, so new reminders surface right away.
+    if (user) supabase.rpc('process_booking_reminders').then(undefined, () => {});
     refetch();
-  }, [refetch]);
+  }, [refetch, user]);
 
   // Live updates: refetch when a new notification lands for this user.
   useEffect(() => {

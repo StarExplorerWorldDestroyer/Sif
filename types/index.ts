@@ -116,7 +116,8 @@ export type NotificationType =
   | 'booking_requested'
   | 'booking_confirmed'
   | 'booking_declined'
-  | 'booking_cancelled';
+  | 'booking_cancelled'
+  | 'booking_reminder';
 
 /** An in-app notification, with the acting user resolved for display. */
 export type AppNotification = {
