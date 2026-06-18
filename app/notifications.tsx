@@ -40,6 +40,8 @@ function message(n: AppNotification): string {
       return `${name} liked your post`;
     case 'post_comment':
       return `${name} commented on your post`;
+    case 'comment_reply':
+      return `${name} replied to your comment`;
     default:
       return name;
   }
@@ -54,6 +56,7 @@ function href(n: AppNotification): string {
     case 'post_tag':
     case 'post_like':
     case 'post_comment':
+    case 'comment_reply':
       return n.entityId ? `/p/${n.entityId}` : '/';
     case 'connection_accepted':
     case 'follow':
@@ -158,7 +161,7 @@ function Avatar({ uri, type }: { uri: string; type: AppNotification['type'] }) {
   const icon =
     type === 'post_like'
       ? 'heart.fill'
-      : type === 'post_comment'
+      : type === 'post_comment' || type === 'comment_reply'
         ? 'bubble.right'
         : type === 'pending_cut' || type === 'post_tag'
           ? 'scissors'

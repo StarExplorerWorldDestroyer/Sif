@@ -162,6 +162,26 @@ export default function PublicProfileScreen() {
                     style={styles.cell}
                     onPress={() => router.push(`/p/${post.id}`)}>
                     <Image source={{ uri: post.photoUrl }} style={styles.tile} contentFit="cover" />
+                    {post.likeCount > 0 || post.commentCount > 0 ? (
+                      <View style={styles.tileStats}>
+                        {post.likeCount > 0 ? (
+                          <View style={styles.tileStat}>
+                            <IconSymbol name="heart.fill" size={12} color={Palette.text} />
+                            <Txt variant="caption" color={Palette.text}>
+                              {post.likeCount}
+                            </Txt>
+                          </View>
+                        ) : null}
+                        {post.commentCount > 0 ? (
+                          <View style={styles.tileStat}>
+                            <IconSymbol name="bubble.right" size={12} color={Palette.text} />
+                            <Txt variant="caption" color={Palette.text}>
+                              {post.commentCount}
+                            </Txt>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
                   </Pressable>
                 ))}
               </View>
@@ -225,4 +245,21 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: '33.333%', aspectRatio: 1, padding: 1 },
   tile: { flex: 1, backgroundColor: Palette.surfaceAlt },
+  tileStats: {
+    position: 'absolute',
+    bottom: Spacing.xs + 1,
+    left: Spacing.xs + 1,
+    right: Spacing.xs + 1,
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  tileStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: Radius.sm,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
 });

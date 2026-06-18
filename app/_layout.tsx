@@ -49,7 +49,7 @@ function useAuthRedirect() {
     const onReset = segments[0] === 'reset';
     const onOnboarding = segments[0] === 'onboarding';
     // Public, shareable routes that don't require being signed in.
-    const onPublicRoute = segments[0] === 'u' || segments[0] === 'p';
+    const onPublicRoute = segments[0] === 'u' || segments[0] === 'p' || segments[0] === 'likes';
 
     if (!user && !onLoginScreen && !onPublicRoute) {
       router.replace('/login');
@@ -93,6 +93,7 @@ function RootNavigator() {
       <Stack.Screen name="post/new" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="u/[username]" options={{ headerShown: false }} />
       <Stack.Screen name="p/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="likes/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="reset" options={{ headerShown: false }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
     </Stack>

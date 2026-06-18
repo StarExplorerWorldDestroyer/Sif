@@ -111,7 +111,8 @@ export type NotificationType =
   | 'pending_cut'
   | 'post_tag'
   | 'post_like'
-  | 'post_comment';
+  | 'post_comment'
+  | 'comment_reply';
 
 /** An in-app notification, with the acting user resolved for display. */
 export type AppNotification = {
@@ -146,6 +147,8 @@ export type PostComment = {
   body: string;
   createdAt: string;
   author: UserSearchResult;
+  /** Parent comment id when this is a reply, else null. */
+  parentId: string | null;
 };
 
 export type ReminderUnit = 'day' | 'week' | 'month';
