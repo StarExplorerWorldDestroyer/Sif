@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Field } from '@/components/ui/field';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
@@ -204,13 +204,7 @@ export default function ReminderScreen() {
                 ))}
               </View>
             </View>
-            <Field
-              label="Starting on"
-              placeholder="YYYY-MM-DD"
-              value={anchor}
-              onChangeText={setAnchor}
-              autoCapitalize="none"
-            />
+            <DatePickerField label="Starting on" value={anchor} onChange={setAnchor} />
           </View>
         ) : null}
 
@@ -245,12 +239,11 @@ export default function ReminderScreen() {
 
         {mode === 'once' ? (
           <View style={styles.section}>
-            <Field
+            <DatePickerField
               label="Remind me on"
-              placeholder="YYYY-MM-DD"
               value={onceDate}
-              onChangeText={setOnceDate}
-              autoCapitalize="none"
+              onChange={setOnceDate}
+              minimumDate={toISODate(new Date())}
             />
           </View>
         ) : null}
