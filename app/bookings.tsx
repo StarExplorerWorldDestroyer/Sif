@@ -14,9 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { StarPicker, StarRating } from '@/components/ui/stars';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { cancelBooking, fetchMyBookings, updateBookingStatus } from '@/lib/bookings';
+import { fetchMyReviewsByBooking, submitReview } from '@/lib/reviews';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import type { Booking, BookingStatus } from '@/types';
 
@@ -42,9 +44,16 @@ export default function BookingsScreen() {
   const [loading, setLoading] = useState(true);
   const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
   const [cancelReasonText, setCancelReasonText] = useState('');
+  const [reviews, setReviews] = useState<Map<string, { rating: number; body: string }>>(new Map());
+  const [reviewTarget, setReviewTarget] = useState<Booking | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewBody, setReviewBody] = useState('');
+  const [savingReview, setSavingReview] = useState(false);
 
   const load = useCallback(async () => {
-    setBookings(await fetchMyBookings());
+    const [bs, rv] = await Promise.all([fetchMyBookings(), fetchMyReviewsByBooking()]);
+    setBookings(bs);
+    setReviews(rv);
     setLoading(false);
   }, []);
 
@@ -89,6 +98,36 @@ export default function BookingsScreen() {
     load();
   }, [cancelTarget, cancelReasonText, load]);
 
+  const openReview = useCallback(
+    (b: Booking) => {
+      const existing = reviews.get(b.id);
+      setReviewRating(existing?.rating ?? 5);
+      setReviewBody(existing?.body ?? '');
+      setReviewTarget(b);
+    },
+    [reviews],
+  );
+
+  const submitReviewForTarget = useCallback(async () => {
+    if (!reviewTarget) return;
+    setSavingReview(true);
+    const { error } = await submitReview({
+      bookingId: reviewTarget.id,
+      stylistId: reviewTarget.stylistId,
+      rating: reviewRating,
+      body: reviewBody,
+    });
+    setSavingReview(false);
+    if (error) return;
+    setReviews((prev) => {
+      const next = new Map(prev);
+      next.set(reviewTarget.id, { rating: reviewRating, body: reviewBody.trim() });
+      return next;
+    });
+    setReviewTarget(null);
+    setReviewBody('');
+  }, [reviewTarget, reviewRating, reviewBody]);
+
   const now = Date.now();
   const requests = bookings.filter((b) => b.role === 'stylist' && b.status === 'pending');
   const upcoming = bookings.filter(
@@ -130,10 +169,12 @@ export default function BookingsScreen() {
                 <BookingCard
                   key={b.id}
                   booking={b}
+                  reviewedRating={reviews.get(b.id)?.rating ?? null}
                   onAct={act}
                   onCreateCut={createCut}
                   onReschedule={reschedule}
                   onCancel={setCancelTarget}
+                  onReview={openReview}
                 />
               ))}
             </Section>
@@ -144,10 +185,12 @@ export default function BookingsScreen() {
                 <BookingCard
                   key={b.id}
                   booking={b}
+                  reviewedRating={reviews.get(b.id)?.rating ?? null}
                   onAct={act}
                   onCreateCut={createCut}
                   onReschedule={reschedule}
                   onCancel={setCancelTarget}
+                  onReview={openReview}
                 />
               ))}
             </Section>
@@ -158,10 +201,12 @@ export default function BookingsScreen() {
                 <BookingCard
                   key={b.id}
                   booking={b}
+                  reviewedRating={reviews.get(b.id)?.rating ?? null}
                   onAct={act}
                   onCreateCut={createCut}
                   onReschedule={reschedule}
                   onCancel={setCancelTarget}
+                  onReview={openReview}
                 />
               ))}
             </Section>
@@ -205,6 +250,49 @@ export default function BookingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={!!reviewTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReviewTarget(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setReviewTarget(null)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Txt variant="heading">Rate your appointment</Txt>
+            <Txt variant="label" color={Palette.textMuted} style={{ marginTop: Spacing.xs }}>
+              {reviewTarget
+                ? `How was your cut with ${reviewTarget.other.displayName || (reviewTarget.other.username ? `@${reviewTarget.other.username}` : 'this stylist')}?`
+                : ''}
+            </Txt>
+            <View style={styles.starsRow}>
+              <StarPicker value={reviewRating} onChange={setReviewRating} />
+            </View>
+            <TextInput
+              value={reviewBody}
+              onChangeText={setReviewBody}
+              placeholder="Share a few words (optional)"
+              placeholderTextColor={Palette.textDim}
+              style={styles.reasonInput}
+              multiline
+            />
+            <View style={styles.modalActions}>
+              <Pressable style={styles.btn} onPress={() => setReviewTarget(null)}>
+                <Txt variant="label" color={Palette.text}>
+                  Cancel
+                </Txt>
+              </Pressable>
+              <Pressable
+                style={[styles.btn, styles.btnPrimary, savingReview && { opacity: 0.6 }]}
+                disabled={savingReview}
+                onPress={submitReviewForTarget}>
+                <Txt variant="label" color={Palette.black} style={{ fontWeight: '600' }}>
+                  {savingReview ? 'Saving…' : 'Submit review'}
+                </Txt>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -222,16 +310,20 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function BookingCard({
   booking,
+  reviewedRating,
   onAct,
   onCreateCut,
   onReschedule,
   onCancel,
+  onReview,
 }: {
   booking: Booking;
+  reviewedRating: number | null;
   onAct: (id: string, status: BookingStatus) => void;
   onCreateCut: (booking: Booking) => void;
   onReschedule: (booking: Booking) => void;
   onCancel: (booking: Booking) => void;
+  onReview: (booking: Booking) => void;
 }) {
   const { other, role, status } = booking;
   const name = other.displayName || (other.username ? `@${other.username}` : 'Sif user');
@@ -245,6 +337,8 @@ function BookingCard({
   const canReschedule = role === 'client' && active && isFuture;
   const canCancel =
     isFuture && ((role === 'client' && active) || (role === 'stylist' && status === 'confirmed'));
+  // Clients can review a completed appointment (and edit it afterwards).
+  const canReview = role === 'client' && status === 'completed';
 
   return (
     <View style={styles.card}>
@@ -281,7 +375,16 @@ function BookingCard({
         </Txt>
       ) : null}
 
-      {canRespond || canCancel || canComplete || canCreateCut || canReschedule ? (
+      {canReview && reviewedRating ? (
+        <View style={styles.reviewedRow}>
+          <StarRating value={reviewedRating} size={14} />
+          <Txt variant="caption" color={Palette.textMuted}>
+            Your rating
+          </Txt>
+        </View>
+      ) : null}
+
+      {canRespond || canCancel || canComplete || canCreateCut || canReschedule || canReview ? (
         <View style={styles.actions}>
           {canRespond ? (
             <>
@@ -325,6 +428,13 @@ function BookingCard({
               </Txt>
             </Pressable>
           ) : null}
+          {canReview ? (
+            <Pressable style={styles.btn} onPress={() => onReview(booking)}>
+              <Txt variant="label" color={Palette.text}>
+                {reviewedRating ? 'Edit review' : 'Leave a review'}
+              </Txt>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -357,6 +467,8 @@ const styles = StyleSheet.create({
   avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   status: { textTransform: 'capitalize' },
   note: { marginTop: Spacing.sm, fontStyle: 'italic' },
+  reviewedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm },
+  starsRow: { alignItems: 'center', marginTop: Spacing.lg },
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
   btn: {
     paddingHorizontal: Spacing.lg,

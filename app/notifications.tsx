@@ -54,6 +54,8 @@ function message(n: AppNotification): string {
       return `Upcoming appointment with ${name}`;
     case 'booking_rescheduled':
       return `${name} rescheduled a booking`;
+    case 'review_received':
+      return `${name} left you a review`;
     default:
       return name;
   }
@@ -76,6 +78,8 @@ function href(n: AppNotification): string {
     case 'booking_cancelled':
     case 'booking_reminder':
     case 'booking_rescheduled':
+      return '/bookings';
+    case 'review_received':
       return '/bookings';
     case 'connection_accepted':
     case 'follow':
@@ -180,15 +184,17 @@ function Avatar({ uri, type }: { uri: string; type: AppNotification['type'] }) {
   const icon =
     type === 'post_like'
       ? 'heart.fill'
-      : type === 'post_comment' || type === 'comment_reply'
-        ? 'bubble.right'
-        : type.startsWith('booking_')
-          ? 'calendar'
-          : type === 'pending_cut' || type === 'post_tag'
-            ? 'scissors'
-            : type === 'follow'
-              ? 'person.fill'
-              : 'person.2.fill';
+      : type === 'review_received'
+        ? 'star.fill'
+        : type === 'post_comment' || type === 'comment_reply'
+          ? 'bubble.right'
+          : type.startsWith('booking_')
+            ? 'calendar'
+            : type === 'pending_cut' || type === 'post_tag'
+              ? 'scissors'
+              : type === 'follow'
+                ? 'person.fill'
+                : 'person.2.fill';
   if (uri) return <Image source={{ uri }} style={styles.avatar} contentFit="cover" />;
   return (
     <View style={[styles.avatar, styles.avatarPlaceholder]}>

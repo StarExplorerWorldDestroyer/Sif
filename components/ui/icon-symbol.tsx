@@ -35,6 +35,8 @@ const MAPPING = {
   'lock.fill': 'lock',
   'checkmark.seal.fill': 'verified',
   'star.fill': 'star',
+  'star': 'star-border',
+  'star.leadinghalf.filled': 'star-half',
   'xmark': 'close',
   'pencil': 'edit',
   'trash': 'delete',

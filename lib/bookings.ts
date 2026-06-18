@@ -25,7 +25,12 @@ function rowToCard(row: any): UserSearchResult {
 export async function fetchStylists(query?: string): Promise<StylistCard[]> {
   const q = query?.trim() || null;
   const { data } = await supabase.rpc('list_stylists', { q });
-  return (data ?? []).map((row: any) => ({ ...rowToCard(row), bio: row.bio ?? '' }));
+  return (data ?? []).map((row: any) => ({
+    ...rowToCard(row),
+    bio: row.bio ?? '',
+    ratingAvg: Number(row.rating_avg ?? 0),
+    ratingCount: Number(row.rating_count ?? 0),
+  }));
 }
 
 /** A single stylist's directory card (or null). */
@@ -33,7 +38,7 @@ export async function fetchStylistCard(stylistId: string): Promise<StylistCard |
   const cards = await fetchCardsByIds([stylistId]);
   const card = cards[0];
   if (!card) return null;
-  return { ...card, bio: '' };
+  return { ...card, bio: '', ratingAvg: 0, ratingCount: 0 };
 }
 
 /** A stylist's booking settings (defaults when unset). */

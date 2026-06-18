@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { StarRating } from '@/components/ui/stars';
 import { TabHeader } from '@/components/ui/tab-header';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
@@ -217,6 +218,14 @@ function StylistDirectory({
               <Txt variant="body" numberOfLines={1}>
                 {s.displayName || s.username || 'Stylist'}
               </Txt>
+              {s.ratingCount > 0 ? (
+                <View style={styles.ratingRow}>
+                  <StarRating value={s.ratingAvg} size={12} />
+                  <Txt variant="caption" color={Palette.textMuted}>
+                    {s.ratingAvg.toFixed(1)} · {s.ratingCount}
+                  </Txt>
+                </View>
+              ) : null}
               {s.bio ? (
                 <Txt variant="caption" color={Palette.textMuted} numberOfLines={1}>
                   {s.bio}
@@ -340,6 +349,7 @@ const styles = StyleSheet.create({
   },
   stylistAvatar: { width: 48, height: 48, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt },
   avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginVertical: 1 },
   subtitle: { marginTop: 2, marginBottom: Spacing.lg },
   filterRow: { marginBottom: Spacing.md },
   filterLabel: { marginBottom: Spacing.xs, textTransform: 'uppercase', letterSpacing: 0.5 },
