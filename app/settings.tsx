@@ -7,6 +7,7 @@ import { Txt } from '@/components/ui/text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { describeRule, formatReminderDate, nextReminderDate } from '@/lib/reminders';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
 import { useProfile } from '@/store/profile';
@@ -24,6 +25,12 @@ export default function SettingsScreen() {
 
   const currency = profile?.currency ?? 'USD';
   const units = profile?.units ?? 'in';
+
+  const reminderRule = profile?.cutReminder?.rule;
+  const reminderNext = reminderRule ? nextReminderDate(reminderRule) : null;
+  const reminderSummary = reminderRule
+    ? `${describeRule(reminderRule)}${reminderNext ? ` · next ${formatReminderDate(reminderNext)}` : ''}`
+    : 'Off — tap to set one up';
 
   async function changePassword() {
     if (!user?.email) return;
@@ -120,6 +127,16 @@ export default function SettingsScreen() {
               thumbColor={Palette.text}
             />
           </View>
+
+          <View style={styles.divider} />
+
+          <Pressable style={styles.actionRow} onPress={() => router.push('/reminder')}>
+            <View style={{ flex: 1 }}>
+              <Txt variant="body">Cut reminder</Txt>
+              <Txt variant="caption">{reminderSummary}</Txt>
+            </View>
+            <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+          </Pressable>
         </View>
 
         <SectionTitle>Privacy & safety</SectionTitle>
