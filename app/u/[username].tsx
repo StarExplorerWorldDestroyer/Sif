@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ProfileLinks } from '@/components/profile/profile-links';
 import { RelationshipButtons } from '@/components/social/relationship-buttons';
+import { StylistHours } from '@/components/social/stylist-hours';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
@@ -141,6 +142,8 @@ export default function PublicProfileScreen() {
                 </Txt>
               </Pressable>
             ) : null}
+
+            {card.isStylist ? <StylistHours stylistId={card.id} /> : null}
 
             {profile?.isStylist && connectionStatus(card.id) === 'connected' ? (
               <Pressable
