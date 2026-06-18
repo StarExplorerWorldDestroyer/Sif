@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { uploadAvatar } from '@/lib/photos';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
-import type { Privacy, Profile, Units } from '@/types';
+import type { CutReminder, Privacy, Profile, Units } from '@/types';
 
 export type ProfilePatch = Partial<{
   username: string | null;
@@ -17,6 +17,7 @@ export type ProfilePatch = Partial<{
   privacy: Privacy;
   isStylist: boolean;
   notificationsEnabled: boolean;
+  cutReminder: CutReminder | null;
 }>;
 
 type ProfileContextValue = {
@@ -43,6 +44,7 @@ function rowToProfile(row: any): Profile {
     privacy: (row.privacy as Privacy) ?? (row.profile_public ? 'public' : 'private'),
     isStylist: row.is_stylist ?? false,
     notificationsEnabled: row.notifications_enabled ?? true,
+    cutReminder: (row.cut_reminder as CutReminder | null) ?? null,
   };
 }
 
@@ -64,6 +66,7 @@ function patchToRow(patch: ProfilePatch) {
   if (patch.isStylist !== undefined) row.is_stylist = patch.isStylist;
   if (patch.notificationsEnabled !== undefined)
     row.notifications_enabled = patch.notificationsEnabled;
+  if (patch.cutReminder !== undefined) row.cut_reminder = patch.cutReminder;
   return row;
 }
 

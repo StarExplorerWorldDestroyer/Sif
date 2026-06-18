@@ -133,6 +133,28 @@ export type PublicPost = {
   stylist: UserSearchResult | null;
 };
 
+export type ReminderUnit = 'day' | 'week' | 'month';
+
+/** Ordinal position of a weekday within a month. -1 means "last". */
+export type ReminderOrdinal = 1 | 2 | 3 | 4 | -1;
+
+/**
+ * How a cut reminder recurs:
+ * - `interval`: every N days/weeks/months, anchored on a start date.
+ * - `nth_weekday`: the Nth weekday of each month (e.g. first Monday).
+ * - `one_off`: a single date, no repeat.
+ */
+export type ReminderRule =
+  | { kind: 'interval'; every: number; unit: ReminderUnit; anchor: string }
+  | { kind: 'nth_weekday'; ordinal: ReminderOrdinal; weekday: number }
+  | { kind: 'one_off'; date: string };
+
+export type CutReminder = {
+  rule: ReminderRule;
+  /** ISO timestamp the reminder was created/last edited. */
+  createdAt: string;
+};
+
 export type Profile = {
   id: string;
   username: string | null;
@@ -148,6 +170,8 @@ export type Profile = {
   privacy: Privacy;
   isStylist: boolean;
   notificationsEnabled: boolean;
+  /** The user's configured "next cut" reminder, or null if none set. */
+  cutReminder: CutReminder | null;
 };
 
 export type Stylist = {
