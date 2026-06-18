@@ -1,15 +1,7 @@
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
@@ -18,9 +10,15 @@ import { StarRating } from '@/components/ui/stars';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useMoney } from '@/hooks/use-money';
-import { useCenteredContent } from '@/hooks/use-responsive';
-import { updateBookingPrice, updateBookingStatus } from '@/lib/bookings';
-import { fetchStylistDashboard, type StylistDashboard } from '@/lib/stylist-stats';
+import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
+import { updateBookingStatus } from '@/lib/bookings';
+import {
+  DATE_RANGES,
+  fetchStylistDashboard,
+  rangeStats,
+  type DateRange,
+  type StylistDashboard,
+} from '@/lib/stylist-stats';
 import { useAuth } from '@/store/auth';
 import { useProfile } from '@/store/profile';
 import type { Booking } from '@/types';
@@ -36,17 +34,21 @@ function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
 }
 
+function clientLabel(b: Booking): string {
+  return b.other.displayName || (b.other.username ? `@${b.other.username}` : 'Sif user');
+}
+
 export default function DashboardScreen() {
   const router = useRouter();
   const money = useMoney();
-  const centered = useCenteredContent(680);
+  const isDesktop = useIsDesktop();
+  const centered = useCenteredContent(isDesktop ? 980 : 680);
   const { user } = useAuth();
   const { profile } = useProfile();
 
   const [data, setData] = useState<StylistDashboard | null>(null);
   const [loading, setLoading] = useState(true);
-  const [priceTarget, setPriceTarget] = useState<Booking | null>(null);
-  const [priceText, setPriceText] = useState('');
+  const [range, setRange] = useState<DateRange>('month');
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -63,31 +65,19 @@ export default function DashboardScreen() {
 
   const respond = useCallback(
     async (id: string, status: 'confirmed' | 'declined') => {
-      setData((prev) =>
-        prev ? { ...prev, pending: prev.pending.filter((b) => b.id !== id) } : prev,
-      );
+      setData((prev) => (prev ? { ...prev, pending: prev.pending.filter((b) => b.id !== id) } : prev));
       await updateBookingStatus(id, status);
       load();
     },
     [load],
   );
 
-  const openPrice = useCallback((b: Booking) => {
-    setPriceTarget(b);
-    setPriceText(b.price > 0 ? String(b.price) : '');
-  }, []);
-
-  const savePrice = useCallback(async () => {
-    if (!priceTarget) return;
-    const value = Math.max(0, Number(priceText) || 0);
-    await updateBookingPrice(priceTarget.id, value);
-    setPriceTarget(null);
-    setPriceText('');
-    load();
-  }, [priceTarget, priceText, load]);
+  const stats = useMemo(() => (data ? rangeStats(data.cuts, range) : null), [data, range]);
 
   const isStylist = profile?.isStylist ?? false;
   const maxRev = data ? Math.max(1, ...data.monthly.map((m) => m.revenue)) : 1;
+  const maxService = stats ? Math.max(1, ...stats.byService.map((s) => s.revenue)) : 1;
+  const half: ViewStyle | undefined = isDesktop ? styles.half : undefined;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -113,280 +103,248 @@ export default function DashboardScreen() {
           primaryLabel="Open settings"
           onPrimary={() => router.push('/settings')}
         />
-      ) : data ? (
+      ) : data && stats ? (
         <ScrollView
           contentContainerStyle={[styles.content, centered]}
           showsVerticalScrollIndicator={false}>
-          {/* Hero metrics */}
+          {/* Hero metrics (all-time) */}
           <View style={styles.grid}>
             <StatBox
               label="Rating"
               value={data.ratingCount > 0 ? data.ratingAvg.toFixed(1) : '—'}
               sub={data.ratingCount > 0 ? `${data.ratingCount} reviews` : 'No reviews yet'}
-              accent
-            >
+              accent>
               {data.ratingCount > 0 ? <StarRating value={data.ratingAvg} size={12} /> : null}
             </StatBox>
             <StatBox label="Upcoming" value={`${data.upcoming.length}`} sub="confirmed" />
-            <StatBox label="Completed" value={`${data.completedCount}`} sub="all time" />
-            <StatBox
-              label="This month"
-              value={`${data.apptThisMonth}`}
-              sub={trendLabel(data.apptThisMonth, data.apptLastMonth)}
-            />
+            <StatBox label="Cuts" value={`${data.cutsAllTime}`} sub="all time" />
+            <StatBox label="Earned" value={money(data.earnedAllTime)} sub="all time" />
           </View>
 
-          {/* Requests needing action */}
-          {data.pending.length > 0 ? (
-            <Section title="Requests" onAll={() => router.push('/bookings')}>
-              {data.pending.slice(0, 4).map((b) => (
-                <View key={b.id} style={styles.requestRow}>
-                  <ClientFace booking={b} />
-                  <View style={{ flex: 1 }}>
-                    <Txt variant="body" numberOfLines={1}>
-                      {clientLabel(b)}
-                    </Txt>
-                    <Txt variant="caption" color={Palette.textMuted}>
-                      {formatWhen(b.startsAt)}
-                    </Txt>
-                  </View>
-                  <Pressable
-                    style={[styles.miniBtn, styles.miniPrimary]}
-                    onPress={() => respond(b.id, 'confirmed')}>
-                    <Txt variant="caption" color={Palette.black} style={{ fontWeight: '700' }}>
-                      Confirm
-                    </Txt>
-                  </Pressable>
-                  <Pressable style={styles.miniBtn} onPress={() => respond(b.id, 'declined')}>
-                    <Txt variant="caption" color={Palette.text}>
-                      Decline
-                    </Txt>
-                  </Pressable>
-                </View>
-              ))}
-            </Section>
-          ) : null}
+          {/* Range selector */}
+          <View style={styles.rangeRow}>
+            {DATE_RANGES.map((r) => (
+              <Pressable
+                key={r.value}
+                style={[styles.rangeChip, range === r.value && styles.rangeChipActive]}
+                onPress={() => setRange(r.value)}>
+                <Txt variant="caption" color={range === r.value ? Palette.black : Palette.textMuted}>
+                  {r.label}
+                </Txt>
+              </Pressable>
+            ))}
+          </View>
 
-          {/* Upcoming schedule */}
-          {data.upcoming.length > 0 ? (
-            <Section title="Next up" onAll={() => router.push('/bookings')}>
-              {data.upcoming.slice(0, 4).map((b) => (
-                <Pressable key={b.id} style={styles.scheduleRow} onPress={() => router.push('/bookings')}>
-                  <ClientFace booking={b} />
-                  <View style={{ flex: 1 }}>
-                    <Txt variant="body" numberOfLines={1}>
-                      {clientLabel(b)}
-                    </Txt>
-                    <Txt variant="caption" color={Palette.textMuted}>
-                      {formatWhen(b.startsAt)}
-                    </Txt>
+          <View style={isDesktop ? styles.flow : undefined}>
+            {/* Requests */}
+            {data.pending.length > 0 ? (
+              <Section title="Requests" onAll={() => router.push('/bookings')} style={half}>
+                {data.pending.slice(0, 4).map((b) => (
+                  <View key={b.id} style={styles.row}>
+                    <ClientFace booking={b} />
+                    <View style={{ flex: 1 }}>
+                      <Txt variant="body" numberOfLines={1}>
+                        {clientLabel(b)}
+                      </Txt>
+                      <Txt variant="caption" color={Palette.textMuted}>
+                        {formatWhen(b.startsAt)}
+                      </Txt>
+                    </View>
+                    <Pressable
+                      style={[styles.miniBtn, styles.miniPrimary]}
+                      onPress={() => respond(b.id, 'confirmed')}>
+                      <Txt variant="caption" color={Palette.black} style={{ fontWeight: '700' }}>
+                        Confirm
+                      </Txt>
+                    </Pressable>
+                    <Pressable style={styles.miniBtn} onPress={() => respond(b.id, 'declined')}>
+                      <Txt variant="caption" color={Palette.text}>
+                        Decline
+                      </Txt>
+                    </Pressable>
                   </View>
-                  <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
-                </Pressable>
-              ))}
-            </Section>
-          ) : null}
+                ))}
+              </Section>
+            ) : null}
 
-          {/* Earnings */}
-          <Section title="Earnings">
-            <View style={styles.earnTop}>
-              <View>
-                <Txt variant="caption" color={Palette.textMuted}>
-                  Total earned
-                </Txt>
-                <Txt variant="title" color={Palette.accent}>
-                  {money(data.totalRevenue)}
-                </Txt>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Txt variant="caption" color={Palette.textMuted}>
-                  Avg / appt
-                </Txt>
-                <Txt variant="heading">{money(data.avgRevenue)}</Txt>
-              </View>
-            </View>
-            <View style={styles.chart}>
-              {data.monthly.map((m) => (
-                <View key={m.key} style={styles.barCol}>
-                  <View style={styles.barTrack}>
-                    <View
-                      style={[
-                        styles.barFill,
-                        { height: `${Math.max(m.revenue > 0 ? 6 : 0, (m.revenue / maxRev) * 100)}%` },
-                      ]}
-                    />
-                  </View>
-                  <Txt variant="caption" color={Palette.textDim}>
-                    {m.label}
+            {/* Next up */}
+            {data.upcoming.length > 0 ? (
+              <Section title="Next up" onAll={() => router.push('/bookings')} style={half}>
+                {data.upcoming.slice(0, 4).map((b) => (
+                  <Pressable key={b.id} style={styles.row} onPress={() => router.push('/bookings')}>
+                    <ClientFace booking={b} />
+                    <View style={{ flex: 1 }}>
+                      <Txt variant="body" numberOfLines={1}>
+                        {clientLabel(b)}
+                      </Txt>
+                      <Txt variant="caption" color={Palette.textMuted}>
+                        {formatWhen(b.startsAt)}
+                      </Txt>
+                    </View>
+                    <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+                  </Pressable>
+                ))}
+              </Section>
+            ) : null}
+
+            {/* Earnings (range) */}
+            <Section title={`Earnings · ${rangeLabel(range)}`} style={half}>
+              <View style={styles.earnTop}>
+                <View>
+                  <Txt variant="caption" color={Palette.textMuted}>
+                    Earned
+                  </Txt>
+                  <Txt variant="title" color={Palette.accent}>
+                    {money(stats.earned)}
                   </Txt>
                 </View>
-              ))}
-            </View>
-            {data.unpricedCount > 0 ? (
-              <Txt variant="caption" color={Palette.textMuted} style={{ marginTop: Spacing.sm }}>
-                {data.unpricedCount} completed{' '}
-                {data.unpricedCount === 1 ? 'appointment needs' : 'appointments need'} a price below.
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Txt variant="caption" color={Palette.textMuted}>
+                    Avg / cut
+                  </Txt>
+                  <Txt variant="heading">{money(stats.avg)}</Txt>
+                </View>
+              </View>
+              <View style={styles.miniStatsRow}>
+                <MiniStat label="Service" value={money(stats.service)} />
+                <MiniStat label="Tips" value={money(stats.tips)} />
+                <MiniStat label="Cuts" value={`${stats.count}`} />
+              </View>
+              <View style={styles.chart}>
+                {data.monthly.map((m) => (
+                  <View key={m.key} style={styles.barCol}>
+                    <View style={styles.barTrack}>
+                      <View
+                        style={[
+                          styles.barFill,
+                          { height: `${Math.max(m.revenue > 0 ? 6 : 0, (m.revenue / maxRev) * 100)}%` },
+                        ]}
+                      />
+                    </View>
+                    <Txt variant="caption" color={Palette.textDim}>
+                      {m.label}
+                    </Txt>
+                  </View>
+                ))}
+              </View>
+              <Txt variant="caption" color={Palette.textDim} style={{ textAlign: 'center' }}>
+                Revenue · last 6 months
               </Txt>
-            ) : null}
-          </Section>
-
-          {/* Appointment pricing */}
-          {data.completed.length > 0 ? (
-            <Section title="Appointments & pricing">
-              {data.completed.slice(0, 8).map((b) => (
-                <Pressable key={b.id} style={styles.priceRow} onPress={() => openPrice(b)}>
-                  <View style={{ flex: 1 }}>
-                    <Txt variant="body" numberOfLines={1}>
-                      {clientLabel(b)}
-                    </Txt>
-                    <Txt variant="caption" color={Palette.textMuted}>
-                      {formatWhen(b.startsAt)}
-                    </Txt>
-                  </View>
-                  {b.price > 0 ? (
-                    <Txt variant="body" color={Palette.text}>
-                      {money(b.price)}
-                    </Txt>
-                  ) : (
-                    <Txt variant="caption" color={Palette.accent}>
-                      Set price
-                    </Txt>
-                  )}
-                </Pressable>
-              ))}
             </Section>
-          ) : null}
 
-          {/* Performance */}
-          <Section title="Performance">
-            {[5, 4, 3, 2, 1].map((star) => {
-              const count = data.ratingDist[star - 1];
-              const frac = data.ratingCount > 0 ? count / data.ratingCount : 0;
-              return (
-                <View key={star} style={styles.distRow}>
-                  <Txt variant="caption" color={Palette.textMuted} style={styles.distStar}>
-                    {star}★
-                  </Txt>
-                  <View style={styles.distTrack}>
-                    <View style={[styles.distFill, { width: `${frac * 100}%` }]} />
+            {/* By service (range) */}
+            <Section title={`By service · ${rangeLabel(range)}`} style={half}>
+              {stats.byService.length === 0 ? (
+                <Txt variant="caption" color={Palette.textMuted}>
+                  No cuts in this period yet.
+                </Txt>
+              ) : (
+                stats.byService.slice(0, 6).map((s) => (
+                  <View key={s.cutType} style={styles.serviceRow}>
+                    <View style={styles.serviceHead}>
+                      <Txt variant="label" numberOfLines={1} style={{ flex: 1 }}>
+                        {s.cutType}
+                      </Txt>
+                      <Txt variant="caption" color={Palette.textMuted}>
+                        {money(s.revenue)} · {s.count}
+                      </Txt>
+                    </View>
+                    <View style={styles.serviceTrack}>
+                      <View style={[styles.serviceFill, { width: `${(s.revenue / maxService) * 100}%` }]} />
+                    </View>
                   </View>
-                  <Txt variant="caption" color={Palette.textDim} style={styles.distCount}>
-                    {count}
-                  </Txt>
-                </View>
-              );
-            })}
-            <View style={styles.metaDivider} />
-            <Meter label="Response rate" value={pct(data.responseRate)} />
-            <Meter label="Completion rate" value={pct(data.completionRate)} />
-            <Meter label="Reviews replied" value={pct(data.replyRate)} />
-          </Section>
-
-          {/* Clients */}
-          <Section title="Clients">
-            <View style={styles.grid}>
-              <StatBox label="Total" value={`${data.uniqueClients}`} sub="clients served" />
-              <StatBox label="Repeat" value={`${data.repeatClients}`} sub="2+ visits" />
-            </View>
-            {data.topClient && data.topClient.count > 1 ? (
-              <Meter label="Top client" value={`${data.topClient.name} · ${data.topClient.count}`} />
-            ) : null}
-          </Section>
-
-          {/* Recent reviews */}
-          {data.recentReviews.length > 0 ? (
-            <Section
-              title="Recent reviews"
-              onAll={profile?.username ? () => router.push(`/u/${profile.username}`) : undefined}>
-              {data.recentReviews.map((r) => (
-                <View key={r.id} style={styles.reviewRow}>
-                  <View style={styles.reviewHead}>
-                    <StarRating value={r.rating} size={12} />
-                    <Txt variant="caption" color={Palette.textMuted}>
-                      {r.author.displayName || (r.author.username ? `@${r.author.username}` : 'Client')}
-                    </Txt>
-                  </View>
-                  {r.body ? (
-                    <Txt variant="label" color={Palette.text} numberOfLines={2}>
-                      {r.body}
-                    </Txt>
-                  ) : null}
-                  {!r.reply ? (
-                    <Txt variant="caption" color={Palette.accent}>
-                      Needs a reply
-                    </Txt>
-                  ) : null}
-                </View>
-              ))}
+                ))
+              )}
             </Section>
-          ) : null}
 
-          {/* Quick actions */}
-          <Section title="Manage">
-            <ActionRow icon="calendar" label="Availability & hours" onPress={() => router.push('/availability')} />
-            <ActionRow icon="person.2.fill" label="All bookings" onPress={() => router.push('/bookings')} />
-            <ActionRow icon="scissors" label="Create a cut for a client" onPress={() => router.push('/add')} />
-            <ActionRow icon="pencil" label="Edit profile" onPress={() => router.push('/profile/edit')} />
-            {profile?.username ? (
-              <ActionRow
-                icon="person.fill"
-                label="View public profile"
-                onPress={() => router.push(`/u/${profile.username}`)}
-              />
+            {/* Performance (all-time) */}
+            <Section title="Performance" style={half}>
+              {[5, 4, 3, 2, 1].map((star) => {
+                const count = data.ratingDist[star - 1];
+                const frac = data.ratingCount > 0 ? count / data.ratingCount : 0;
+                return (
+                  <View key={star} style={styles.distRow}>
+                    <Txt variant="caption" color={Palette.textMuted} style={styles.distStar}>
+                      {star}★
+                    </Txt>
+                    <View style={styles.distTrack}>
+                      <View style={[styles.distFill, { width: `${frac * 100}%` }]} />
+                    </View>
+                    <Txt variant="caption" color={Palette.textDim} style={styles.distCount}>
+                      {count}
+                    </Txt>
+                  </View>
+                );
+              })}
+              <View style={styles.metaDivider} />
+              <Meter label="Response rate" value={pct(data.responseRate)} />
+              <Meter label="Completion rate" value={pct(data.completionRate)} />
+              <Meter label="Reviews replied" value={pct(data.replyRate)} />
+            </Section>
+
+            {/* Clients (all-time) */}
+            <Section title="Clients" style={half}>
+              <View style={styles.grid}>
+                <StatBox label="Total" value={`${data.uniqueClients}`} sub="clients served" />
+                <StatBox label="Repeat" value={`${data.repeatClients}`} sub="2+ visits" />
+              </View>
+              {data.topClient && data.topClient.count > 1 ? (
+                <Meter label="Top client" value={`${data.topClient.name} · ${data.topClient.count}`} />
+              ) : null}
+            </Section>
+
+            {/* Recent reviews */}
+            {data.recentReviews.length > 0 ? (
+              <Section
+                title="Recent reviews"
+                style={half}
+                onAll={profile?.username ? () => router.push(`/u/${profile.username}`) : undefined}>
+                {data.recentReviews.map((r) => (
+                  <View key={r.id} style={styles.reviewRow}>
+                    <View style={styles.reviewHead}>
+                      <StarRating value={r.rating} size={12} />
+                      <Txt variant="caption" color={Palette.textMuted}>
+                        {r.author.displayName || (r.author.username ? `@${r.author.username}` : 'Client')}
+                      </Txt>
+                    </View>
+                    {r.body ? (
+                      <Txt variant="label" color={Palette.text} numberOfLines={2}>
+                        {r.body}
+                      </Txt>
+                    ) : null}
+                    {!r.reply ? (
+                      <Txt variant="caption" color={Palette.accent}>
+                        Needs a reply
+                      </Txt>
+                    ) : null}
+                  </View>
+                ))}
+              </Section>
             ) : null}
-          </Section>
+
+            {/* Manage */}
+            <Section title="Manage" style={half}>
+              <ActionRow icon="calendar" label="Availability & hours" onPress={() => router.push('/availability')} />
+              <ActionRow icon="person.2.fill" label="All bookings" onPress={() => router.push('/bookings')} />
+              <ActionRow icon="scissors" label="Create a cut for a client" onPress={() => router.push('/add')} />
+              <ActionRow icon="pencil" label="Edit profile" onPress={() => router.push('/profile/edit')} />
+              {profile?.username ? (
+                <ActionRow
+                  icon="person.fill"
+                  label="View public profile"
+                  onPress={() => router.push(`/u/${profile.username}`)}
+                />
+              ) : null}
+            </Section>
+          </View>
         </ScrollView>
       ) : null}
-
-      <Modal
-        visible={!!priceTarget}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPriceTarget(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setPriceTarget(null)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <Txt variant="heading">What did you charge?</Txt>
-            <Txt variant="label" color={Palette.textMuted} style={{ marginTop: Spacing.xs }}>
-              {priceTarget ? clientLabel(priceTarget) : ''}
-            </Txt>
-            <TextInput
-              value={priceText}
-              onChangeText={setPriceText}
-              placeholder="0"
-              placeholderTextColor={Palette.textDim}
-              keyboardType="decimal-pad"
-              style={styles.priceInput}
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <Pressable style={styles.btn} onPress={() => setPriceTarget(null)}>
-                <Txt variant="label" color={Palette.text}>
-                  Cancel
-                </Txt>
-              </Pressable>
-              <Pressable style={[styles.btn, styles.btnPrimary]} onPress={savePrice}>
-                <Txt variant="label" color={Palette.black} style={{ fontWeight: '600' }}>
-                  Save
-                </Txt>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
 
-function trendLabel(now: number, prev: number): string {
-  if (prev === 0 && now === 0) return 'no activity';
-  if (prev === 0) return 'new this month';
-  const diff = now - prev;
-  if (diff === 0) return 'same as last';
-  return `${diff > 0 ? '+' : ''}${diff} vs last`;
-}
-
-function clientLabel(b: Booking): string {
-  return b.other.displayName || (b.other.username ? `@${b.other.username}` : 'Sif user');
+function rangeLabel(range: DateRange): string {
+  return DATE_RANGES.find((r) => r.value === range)?.label ?? '';
 }
 
 function ClientFace({ booking }: { booking: Booking }) {
@@ -402,14 +360,16 @@ function ClientFace({ booking }: { booking: Booking }) {
 function Section({
   title,
   onAll,
+  style,
   children,
 }: {
   title: string;
   onAll?: () => void;
+  style?: ViewStyle;
   children: React.ReactNode;
 }) {
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, style]}>
       <View style={styles.sectionHead}>
         <Txt variant="label" color={Palette.textMuted} style={styles.sectionTitle}>
           {title.toUpperCase()}
@@ -454,6 +414,19 @@ function StatBox({
           {sub}
         </Txt>
       ) : null}
+    </View>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.miniStat}>
+      <Txt variant="caption" color={Palette.textMuted}>
+        {label}
+      </Txt>
+      <Txt variant="body" color={Palette.text}>
+        {value}
+      </Txt>
     </View>
   );
 }
@@ -514,6 +487,16 @@ const styles = StyleSheet.create({
     borderColor: Palette.border,
     padding: Spacing.md,
   },
+  rangeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.lg },
+  rangeChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.surfaceAlt,
+  },
+  rangeChipActive: { backgroundColor: Palette.accent },
+  flow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: Spacing.lg, alignItems: 'flex-start' },
+  half: { width: '48%' },
   section: { marginTop: Spacing.lg },
   sectionHead: {
     flexDirection: 'row',
@@ -531,18 +514,7 @@ const styles = StyleSheet.create({
   },
   face: { width: 36, height: 36, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt },
   facePlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  requestRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
-  },
-  scheduleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
-  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
   miniBtn: {
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
@@ -553,11 +525,13 @@ const styles = StyleSheet.create({
   },
   miniPrimary: { backgroundColor: Palette.accent, borderColor: Palette.accent },
   earnTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  miniStatsRow: { flexDirection: 'row', gap: Spacing.lg, marginTop: Spacing.md },
+  miniStat: { gap: 1 },
   chart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    height: 120,
+    height: 110,
     gap: Spacing.sm,
     marginTop: Spacing.md,
   },
@@ -570,12 +544,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: Radius.sm,
     backgroundColor: Palette.accent,
   },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
-  },
+  serviceRow: { paddingVertical: Spacing.xs, gap: Spacing.xs },
+  serviceHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  serviceTrack: { height: 8, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt, overflow: 'hidden' },
+  serviceFill: { height: '100%', backgroundColor: Palette.accent, borderRadius: Radius.pill },
   distRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 3 },
   distStar: { width: 24 },
   distTrack: {
@@ -597,40 +569,4 @@ const styles = StyleSheet.create({
   reviewRow: { paddingVertical: Spacing.sm, gap: 3 },
   reviewHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.md },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.lg,
-  },
-  sheet: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Palette.border,
-    padding: Spacing.lg,
-  },
-  priceInput: {
-    color: Palette.text,
-    fontSize: 28,
-    fontWeight: '700',
-    backgroundColor: Palette.surfaceAlt,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    marginTop: Spacing.md,
-  },
-  modalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg, justifyContent: 'flex-end' },
-  btn: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Palette.border,
-    backgroundColor: Palette.surfaceAlt,
-  },
-  btnPrimary: { backgroundColor: Palette.accent, borderColor: Palette.accent },
 });
