@@ -133,6 +133,15 @@ export default function PublicProfileScreen() {
               <RelationshipButtons userId={card.id} />
             </View>
 
+            {card.isStylist && profile?.id !== card.id ? (
+              <Pressable style={styles.bookButton} onPress={() => router.push(`/book/${card.id}`)}>
+                <IconSymbol name="calendar" size={16} color={Palette.black} />
+                <Txt variant="label" color={Palette.black} style={{ fontWeight: '600' }}>
+                  Book an appointment
+                </Txt>
+              </Pressable>
+            ) : null}
+
             {profile?.isStylist && connectionStatus(card.id) === 'connected' ? (
               <Pressable
                 style={styles.stylistAction}
@@ -230,6 +239,16 @@ const styles = StyleSheet.create({
   stat: { alignItems: 'center', minWidth: 64 },
   bio: { textAlign: 'center', maxWidth: 280, marginTop: Spacing.md },
   buttons: { marginTop: Spacing.md },
+  bookButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+    backgroundColor: Palette.accent,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.pill,
+  },
   stylistAction: {
     flexDirection: 'row',
     alignItems: 'center',

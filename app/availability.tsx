@@ -1,0 +1,292 @@
+import { useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Txt } from '@/components/ui/text';
+import { Palette, Radius, Spacing } from '@/constants/theme';
+import { fetchAvailability, fetchBookingSettings, saveAvailability, saveBookingSettings } from '@/lib/bookings';
+import { useCenteredContent } from '@/hooks/use-responsive';
+import { useAuth } from '@/store/auth';
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const SLOT_OPTIONS = [15, 30, 45, 60, 90];
+
+// Selectable times: 6:00 AM → 10:00 PM in 30-minute steps.
+const TIME_OPTIONS = Array.from({ length: (22 - 6) * 2 + 1 }, (_, i) => 360 + i * 30);
+
+function timeLabel(min: number): string {
+  const h24 = Math.floor(min / 60);
+  const m = min % 60;
+  const ampm = h24 < 12 ? 'AM' : 'PM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+}
+
+type DayState = { open: boolean; startMin: number; endMin: number };
+
+export default function AvailabilityScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const centered = useCenteredContent(640);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [slotMinutes, setSlotMinutes] = useState(60);
+  const [acceptsBookings, setAcceptsBookings] = useState(true);
+  const [days, setDays] = useState<DayState[]>(
+    DAYS.map(() => ({ open: false, startMin: 540, endMin: 1020 })),
+  );
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const uid = user?.id;
+      if (!uid) return;
+      const [settings, windows] = await Promise.all([
+        fetchBookingSettings(uid),
+        fetchAvailability(uid),
+      ]);
+      if (!active) return;
+      setSlotMinutes(settings.slotMinutes);
+      setAcceptsBookings(settings.acceptsBookings);
+      setDays((prev) =>
+        prev.map((d, weekday) => {
+          const w = windows.find((win) => win.weekday === weekday);
+          return w ? { open: true, startMin: w.startMin, endMin: w.endMin } : d;
+        }),
+      );
+      setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  async function save() {
+    setSaving(true);
+    const windows = days
+      .map((d, weekday) => ({ weekday, startMin: d.startMin, endMin: d.endMin, open: d.open }))
+      .filter((d) => d.open && d.endMin > d.startMin)
+      .map(({ weekday, startMin, endMin }) => ({ weekday, startMin, endMin }));
+    await Promise.all([
+      saveAvailability(windows),
+      saveBookingSettings({ slotMinutes, acceptsBookings }),
+    ]);
+    setSaving(false);
+    router.back();
+  }
+
+  function setDay(weekday: number, patch: Partial<DayState>) {
+    setDays((prev) => prev.map((d, i) => (i === weekday ? { ...d, ...patch } : d)));
+  }
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <IconSymbol name="chevron.left" size={26} color={Palette.text} />
+        </Pressable>
+        <Txt variant="heading">Availability</Txt>
+        <Pressable onPress={save} hitSlop={8} disabled={saving || loading}>
+          <Txt variant="label" color={saving || loading ? Palette.textDim : Palette.accent}>
+            Save
+          </Txt>
+        </Pressable>
+      </View>
+
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={Palette.accent} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={[styles.content, centered]} showsVerticalScrollIndicator={false}>
+          <View style={styles.card}>
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <Txt variant="body">Accepting bookings</Txt>
+                <Txt variant="caption">Turn off to hide your booking button.</Txt>
+              </View>
+              <Switch
+                value={acceptsBookings}
+                onValueChange={setAcceptsBookings}
+                trackColor={{ true: Palette.accent, false: Palette.surfaceAlt }}
+                thumbColor={Palette.text}
+              />
+            </View>
+
+            <View style={styles.divider} />
+
+            <Txt variant="label" style={styles.rowLabel}>
+              Appointment length
+            </Txt>
+            <View style={styles.pillRow}>
+              {SLOT_OPTIONS.map((m) => (
+                <Pressable
+                  key={m}
+                  onPress={() => setSlotMinutes(m)}
+                  style={[styles.pill, m === slotMinutes && styles.pillActive]}>
+                  <Txt variant="caption" color={m === slotMinutes ? Palette.black : Palette.textMuted}>
+                    {m} min
+                  </Txt>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <Txt variant="label" color={Palette.textMuted} style={styles.sectionTitle}>
+            WEEKLY HOURS
+          </Txt>
+          <View style={styles.card}>
+            {days.map((d, weekday) => (
+              <View key={weekday}>
+                {weekday > 0 ? <View style={styles.divider} /> : null}
+                <View style={styles.dayRow}>
+                  <Txt variant="body" style={styles.dayName}>
+                    {DAYS[weekday]}
+                  </Txt>
+                  <Switch
+                    value={d.open}
+                    onValueChange={(v) => setDay(weekday, { open: v })}
+                    trackColor={{ true: Palette.accent, false: Palette.surfaceAlt }}
+                    thumbColor={Palette.text}
+                  />
+                </View>
+                {d.open ? (
+                  <View style={styles.timeRow}>
+                    <TimeField
+                      value={d.startMin}
+                      onChange={(v) => setDay(weekday, { startMin: v, endMin: Math.max(v + 30, d.endMin) })}
+                    />
+                    <Txt variant="label" color={Palette.textMuted}>
+                      to
+                    </Txt>
+                    <TimeField
+                      value={d.endMin}
+                      min={d.startMin + 30}
+                      onChange={(v) => setDay(weekday, { endMin: v })}
+                    />
+                  </View>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      )}
+    </SafeAreaView>
+  );
+}
+
+function TimeField({
+  value,
+  onChange,
+  min,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const options = useMemo(
+    () => TIME_OPTIONS.filter((t) => (min === undefined ? true : t >= min)),
+    [min],
+  );
+  return (
+    <>
+      <Pressable style={styles.timeField} onPress={() => setOpen(true)}>
+        <Txt variant="label" color={Palette.text}>
+          {timeLabel(value)}
+        </Txt>
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <ScrollView>
+              {options.map((t) => (
+                <Pressable
+                  key={t}
+                  style={styles.timeOption}
+                  onPress={() => {
+                    onChange(t);
+                    setOpen(false);
+                  }}>
+                  <Txt variant="body" color={t === value ? Palette.accent : Palette.text}>
+                    {timeLabel(t)}
+                  </Txt>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: Palette.black },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  card: {
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    padding: Spacing.lg,
+  },
+  sectionTitle: { marginTop: Spacing.lg, marginBottom: Spacing.sm, letterSpacing: 1 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  rowLabel: { marginBottom: Spacing.sm },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  pill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.surfaceAlt,
+  },
+  pillActive: { backgroundColor: Palette.accent },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: Palette.border, marginVertical: Spacing.md },
+  dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dayName: { flex: 1 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginTop: Spacing.sm },
+  timeField: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    backgroundColor: Palette.surfaceAlt,
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  sheet: {
+    width: '100%',
+    maxWidth: 320,
+    maxHeight: '70%',
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    paddingVertical: Spacing.sm,
+  },
+  timeOption: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg, alignItems: 'center' },
+});
