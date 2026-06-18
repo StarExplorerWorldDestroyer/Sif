@@ -109,7 +109,9 @@ export type NotificationType =
   | 'connection_accepted'
   | 'follow'
   | 'pending_cut'
-  | 'post_tag';
+  | 'post_tag'
+  | 'post_like'
+  | 'post_comment';
 
 /** An in-app notification, with the acting user resolved for display. */
 export type AppNotification = {
@@ -131,6 +133,19 @@ export type PublicPost = {
   author: PublicProfile;
   /** Tagged/credited stylist, resolved for display (null if none). */
   stylist: UserSearchResult | null;
+  likeCount: number;
+  commentCount: number;
+  /** Whether the current viewer has liked this post. */
+  likedByMe: boolean;
+};
+
+/** A comment on a post, with its author resolved for display. */
+export type PostComment = {
+  id: string;
+  postId: string;
+  body: string;
+  createdAt: string;
+  author: UserSearchResult;
 };
 
 export type ReminderUnit = 'day' | 'week' | 'month';
