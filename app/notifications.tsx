@@ -56,6 +56,8 @@ function message(n: AppNotification): string {
       return `${name} rescheduled a booking`;
     case 'review_received':
       return `${name} left you a review`;
+    case 'review_reply':
+      return `${name} replied to your review`;
     default:
       return name;
   }
@@ -81,6 +83,8 @@ function href(n: AppNotification): string {
       return '/bookings';
     case 'review_received':
       return '/bookings';
+    case 'review_reply':
+      return n.actor?.username ? `/u/${n.actor.username}` : '/bookings';
     case 'connection_accepted':
     case 'follow':
       return n.actor?.username ? `/u/${n.actor.username}` : '/connections';
@@ -184,7 +188,7 @@ function Avatar({ uri, type }: { uri: string; type: AppNotification['type'] }) {
   const icon =
     type === 'post_like'
       ? 'heart.fill'
-      : type === 'review_received'
+      : type === 'review_received' || type === 'review_reply'
         ? 'star.fill'
         : type === 'post_comment' || type === 'comment_reply'
           ? 'bubble.right'

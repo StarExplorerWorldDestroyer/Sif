@@ -119,7 +119,8 @@ export type NotificationType =
   | 'booking_cancelled'
   | 'booking_reminder'
   | 'booking_rescheduled'
-  | 'review_received';
+  | 'review_received'
+  | 'review_reply';
 
 /** An in-app notification, with the acting user resolved for display. */
 export type AppNotification = {
@@ -167,6 +168,10 @@ export type Review = {
   createdAt: string;
   /** The reviewer, resolved for display. */
   author: UserSearchResult;
+  /** The stylist's public reply, or '' when none. */
+  reply: string;
+  /** ISO timestamp of the reply, or null. */
+  replyAt: string | null;
 };
 
 /** A recurring weekly availability window for a stylist. */
