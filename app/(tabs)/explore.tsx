@@ -9,6 +9,7 @@ import { Screen } from '@/components/ui/screen';
 import { TabHeader } from '@/components/ui/tab-header';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
+import { setPostLike } from '@/lib/engagement';
 import { fetchPublicFeed, searchUsers } from '@/lib/public';
 import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
 import type { PublicPost, UserSearchResult } from '@/types';
@@ -38,6 +39,18 @@ export default function ExploreScreen() {
       load();
     }, [load]),
   );
+
+  const toggleLike = useCallback((post: PublicPost) => {
+    const like = !post.likedByMe;
+    setFeed((prev) =>
+      prev.map((p) =>
+        p.id === post.id
+          ? { ...p, likedByMe: like, likeCount: Math.max(0, p.likeCount + (like ? 1 : -1)) }
+          : p,
+      ),
+    );
+    setPostLike(post.id, like).catch(() => load());
+  }, [load]);
 
   // Debounced user search.
   useEffect(() => {
@@ -160,34 +173,61 @@ export default function ExploreScreen() {
               <View
                 key={post.id}
                 style={[styles.cell, { width: isDesktop ? '33.333%' : '100%' }]}>
-                <Pressable style={styles.card} onPress={() => router.push(`/p/${post.id}`)}>
-                  <View style={styles.cardHeader}>
-                    {post.author.avatarUrl ? (
-                      <Image source={{ uri: post.author.avatarUrl }} style={styles.avatar} contentFit="cover" />
-                    ) : (
-                      <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                        <IconSymbol name="person.fill" size={14} color={Palette.textMuted} />
-                      </View>
-                    )}
-                    <Txt variant="label" color={Palette.text}>
-                      {post.author.username || post.author.displayName || 'Sif user'}
-                    </Txt>
-                  </View>
-                  <Image source={{ uri: post.photoUrl }} style={styles.photo} contentFit="cover" />
-                  {post.caption ? (
-                    <Txt variant="label" numberOfLines={2} style={styles.caption}>
-                      {post.caption}
-                    </Txt>
-                  ) : null}
-                  {post.stylist ? (
-                    <View style={styles.stylistCredit}>
-                      <IconSymbol name="scissors" size={12} color={Palette.textMuted} />
-                      <Txt variant="caption" color={Palette.textMuted} numberOfLines={1}>
-                        {post.stylist.displayName || `@${post.stylist.username}`}
+                <View style={styles.card}>
+                  <Pressable onPress={() => router.push(`/p/${post.id}`)}>
+                    <View style={styles.cardHeader}>
+                      {post.author.avatarUrl ? (
+                        <Image source={{ uri: post.author.avatarUrl }} style={styles.avatar} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                          <IconSymbol name="person.fill" size={14} color={Palette.textMuted} />
+                        </View>
+                      )}
+                      <Txt variant="label" color={Palette.text}>
+                        {post.author.username || post.author.displayName || 'Sif user'}
                       </Txt>
                     </View>
-                  ) : null}
-                </Pressable>
+                    <Image source={{ uri: post.photoUrl }} style={styles.photo} contentFit="cover" />
+                    {post.caption ? (
+                      <Txt variant="label" numberOfLines={2} style={styles.caption}>
+                        {post.caption}
+                      </Txt>
+                    ) : null}
+                    {post.stylist ? (
+                      <View style={styles.stylistCredit}>
+                        <IconSymbol name="scissors" size={12} color={Palette.textMuted} />
+                        <Txt variant="caption" color={Palette.textMuted} numberOfLines={1}>
+                          {post.stylist.displayName || `@${post.stylist.username}`}
+                        </Txt>
+                      </View>
+                    ) : null}
+                  </Pressable>
+                  <View style={styles.engageRow}>
+                    <Pressable style={styles.engageBtn} onPress={() => toggleLike(post)} hitSlop={8}>
+                      <IconSymbol
+                        name={post.likedByMe ? 'heart.fill' : 'heart'}
+                        size={18}
+                        color={post.likedByMe ? Palette.accent : Palette.textMuted}
+                      />
+                      {post.likeCount > 0 ? (
+                        <Txt variant="caption" color={post.likedByMe ? Palette.accent : Palette.textMuted}>
+                          {post.likeCount}
+                        </Txt>
+                      ) : null}
+                    </Pressable>
+                    <Pressable
+                      style={styles.engageBtn}
+                      onPress={() => router.push(`/p/${post.id}`)}
+                      hitSlop={8}>
+                      <IconSymbol name="bubble.right" size={18} color={Palette.textMuted} />
+                      {post.commentCount > 0 ? (
+                        <Txt variant="caption" color={Palette.textMuted}>
+                          {post.commentCount}
+                        </Txt>
+                      ) : null}
+                    </Pressable>
+                  </View>
+                </View>
               </View>
             ))}
           </View>
@@ -266,5 +306,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.md,
   },
+  engageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Palette.border,
+  },
+  engageBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 });
 

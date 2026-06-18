@@ -36,6 +36,10 @@ function message(n: AppNotification): string {
       return `${name} sent you a new cut to review`;
     case 'post_tag':
       return `${name} tagged you in a post`;
+    case 'post_like':
+      return `${name} liked your post`;
+    case 'post_comment':
+      return `${name} commented on your post`;
     default:
       return name;
   }
@@ -48,6 +52,8 @@ function href(n: AppNotification): string {
     case 'pending_cut':
       return '/pending';
     case 'post_tag':
+    case 'post_like':
+    case 'post_comment':
       return n.entityId ? `/p/${n.entityId}` : '/';
     case 'connection_accepted':
     case 'follow':
@@ -150,11 +156,15 @@ function NotifLink({
 
 function Avatar({ uri, type }: { uri: string; type: AppNotification['type'] }) {
   const icon =
-    type === 'pending_cut' || type === 'post_tag'
-      ? 'scissors'
-      : type === 'follow'
-        ? 'person.fill'
-        : 'person.2.fill';
+    type === 'post_like'
+      ? 'heart.fill'
+      : type === 'post_comment'
+        ? 'bubble.right'
+        : type === 'pending_cut' || type === 'post_tag'
+          ? 'scissors'
+          : type === 'follow'
+            ? 'person.fill'
+            : 'person.2.fill';
   if (uri) return <Image source={{ uri }} style={styles.avatar} contentFit="cover" />;
   return (
     <View style={[styles.avatar, styles.avatarPlaceholder]}>

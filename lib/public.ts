@@ -71,18 +71,35 @@ export async function fetchCardsByIds(ids: string[]): Promise<UserSearchResult[]
   return (data ?? []).map(rpcToCard);
 }
 
-/** Attach author profiles (and any tagged stylist) to a set of post rows. */
+/** Attach author profiles, tagged stylist, and like/comment engagement. */
 async function withAuthors(postRows: any[]): Promise<PublicPost[]> {
   if (postRows.length === 0) return [];
+  const ids = postRows.map((p) => p.id);
   const userIds = Array.from(new Set(postRows.map((p) => p.user_id)));
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, username, display_name, bio, avatar_url')
-    .in('id', userIds);
-  const byId = new Map((profiles ?? []).map((p) => [p.id, rowToPublicProfile(p)]));
 
+  const [{ data: profiles }, { data: likeRows }, { data: commentRows }, { data: auth }] =
+    await Promise.all([
+      supabase.from('profiles').select('id, username, display_name, bio, avatar_url').in('id', userIds),
+      supabase.from('post_likes').select('post_id, user_id').in('post_id', ids),
+      supabase.from('post_comments').select('post_id').in('post_id', ids),
+      supabase.auth.getUser(),
+    ]);
+
+  const byId = new Map((profiles ?? []).map((p) => [p.id, rowToPublicProfile(p)]));
   const stylists = await fetchCardsByIds(postRows.map((p) => p.stylist_id));
   const stylistById = new Map(stylists.map((s) => [s.id, s]));
+
+  const myId = auth?.user?.id ?? null;
+  const likeCounts = new Map<string, number>();
+  const likedByMe = new Set<string>();
+  for (const r of likeRows ?? []) {
+    likeCounts.set(r.post_id, (likeCounts.get(r.post_id) ?? 0) + 1);
+    if (myId && r.user_id === myId) likedByMe.add(r.post_id);
+  }
+  const commentCounts = new Map<string, number>();
+  for (const r of commentRows ?? []) {
+    commentCounts.set(r.post_id, (commentCounts.get(r.post_id) ?? 0) + 1);
+  }
 
   return postRows
     .filter((p) => byId.has(p.user_id))
@@ -94,6 +111,9 @@ async function withAuthors(postRows: any[]): Promise<PublicPost[]> {
       createdAt: p.created_at,
       author: byId.get(p.user_id)!,
       stylist: p.stylist_id ? stylistById.get(p.stylist_id) ?? null : null,
+      likeCount: likeCounts.get(p.id) ?? 0,
+      commentCount: commentCounts.get(p.id) ?? 0,
+      likedByMe: likedByMe.has(p.id),
     }));
 }
 
