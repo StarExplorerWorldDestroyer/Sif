@@ -1,11 +1,17 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Txt } from '@/components/ui/text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Palette, Radius, Spacing } from '@/constants/theme';
+import {
+  disableWebPush,
+  enableWebPush,
+  isWebPushEnabled,
+  isWebPushSupported,
+} from '@/lib/push-web';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { describeRule, formatReminderDate, nextReminderDate } from '@/lib/reminders';
 import { supabase } from '@/lib/supabase';
@@ -22,6 +28,35 @@ export default function SettingsScreen() {
   const centered = useCenteredContent(640);
 
   const [busy, setBusy] = useState(false);
+  const pushSupported = isWebPushSupported();
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    if (pushSupported) isWebPushEnabled().then(setPushOn);
+  }, [pushSupported]);
+
+  async function togglePush(value: boolean) {
+    setPushBusy(true);
+    if (value) {
+      const result = await enableWebPush();
+      if (result === 'enabled') {
+        setPushOn(true);
+      } else {
+        setPushOn(false);
+        Alert.alert(
+          'Notifications not enabled',
+          result === 'denied'
+            ? 'Your browser blocked notifications. Allow them in your browser settings to turn this on.'
+            : 'Could not enable push notifications on this device.',
+        );
+      }
+    } else {
+      await disableWebPush();
+      setPushOn(false);
+    }
+    setPushBusy(false);
+  }
 
   const currency = profile?.currency ?? 'USD';
   const units = profile?.units ?? 'in';
@@ -127,6 +162,25 @@ export default function SettingsScreen() {
               thumbColor={Palette.text}
             />
           </View>
+
+          {pushSupported ? (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.toggleRow}>
+                <View style={{ flex: 1 }}>
+                  <Txt variant="body">Push notifications</Txt>
+                  <Txt variant="caption">Get alerts in this browser even when Sif is closed.</Txt>
+                </View>
+                <Switch
+                  value={pushOn}
+                  disabled={pushBusy}
+                  onValueChange={togglePush}
+                  trackColor={{ true: Palette.accent, false: Palette.surfaceAlt }}
+                  thumbColor={Palette.text}
+                />
+              </View>
+            </>
+          ) : null}
 
           <View style={styles.divider} />
 
