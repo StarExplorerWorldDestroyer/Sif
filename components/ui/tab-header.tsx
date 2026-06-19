@@ -6,6 +6,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { useMessages } from '@/store/messages';
 import { useNotifications } from '@/store/notifications';
 
 /**
@@ -25,6 +26,7 @@ export function TabHeader({
 }) {
   const router = useRouter();
   const { unreadCount } = useNotifications();
+  const { unreadTotal } = useMessages();
   const centered = useCenteredContent();
 
   return (
@@ -42,6 +44,19 @@ export function TabHeader({
 
         <View style={styles.actions}>
           {actions}
+          <Pressable
+            style={styles.bellButton}
+            hitSlop={8}
+            onPress={() => router.push('/messages')}>
+            <IconSymbol name="bubble.right" size={22} color={Palette.text} />
+            {unreadTotal > 0 ? (
+              <View style={styles.badge}>
+                <Txt variant="caption" color={Palette.black} style={styles.badgeText}>
+                  {unreadTotal > 9 ? '9+' : unreadTotal}
+                </Txt>
+              </View>
+            ) : null}
+          </Pressable>
           <Pressable
             style={styles.bellButton}
             hitSlop={8}

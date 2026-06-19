@@ -11,6 +11,7 @@ import { StylistReviews } from '@/components/social/stylist-reviews';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
+import { getOrCreateConversation } from '@/lib/messages';
 import { fetchFollowCounts, fetchPostsForUser, fetchProfileView } from '@/lib/public';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useProfile } from '@/store/profile';
@@ -57,6 +58,11 @@ export default function PublicProfileScreen() {
 
   const name = full?.displayName || card?.displayName || card?.username || 'Sif user';
   const avatarUrl = full?.avatarUrl || card?.avatarUrl || '';
+
+  async function openMessage(otherId: string) {
+    const cid = await getOrCreateConversation(otherId);
+    if (cid) router.push(`/messages/${cid}?other=${otherId}`);
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -134,6 +140,15 @@ export default function PublicProfileScreen() {
             <View style={styles.buttons}>
               <RelationshipButtons userId={card.id} />
             </View>
+
+            {profile && profile.id !== card.id ? (
+              <Pressable style={styles.messageButton} onPress={() => openMessage(card.id)}>
+                <IconSymbol name="bubble.right" size={16} color={Palette.text} />
+                <Txt variant="label" color={Palette.text} style={{ fontWeight: '600' }}>
+                  Message
+                </Txt>
+              </Pressable>
+            ) : null}
 
             {card.isStylist && profile?.id !== card.id ? (
               <Pressable style={styles.bookButton} onPress={() => router.push(`/book/${card.id}`)}>
@@ -256,6 +271,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.pill,
+  },
+  messageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    backgroundColor: Palette.surface,
   },
   stylistAction: {
     flexDirection: 'row',
