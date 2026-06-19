@@ -2,7 +2,6 @@
 
 Ideas captured for later. Not yet scheduled.
 
-## Stylist dashboard (future enhancements)
-- **Earnings export** — CSV/export of earnings (by range) for taxes/bookkeeping.
-- **Busiest days/times heatmap** — derived from booking history, to help stylists plan availability.
-- **Client retention insights** — new vs returning clients over time, churn/repeat-rate trends.
+## Stylist dashboard
+Shipped: earnings CSV export (by range), busiest-times heatmap, and client
+retention insights (new vs returning + repeat rate). Nothing outstanding.

@@ -22,6 +22,122 @@ export const DATE_RANGES: { value: DateRange; label: string }[] = [
 /** Revenue grouped by cut type. */
 export type ServiceBucket = { cutType: string; revenue: number; count: number };
 
+/** Two-hour columns for the busiest-times heatmap, covering 8a–8p. */
+export const HEAT_BUCKETS: { label: string; start: number }[] = [
+  { label: '8a', start: 8 },
+  { label: '10a', start: 10 },
+  { label: '12p', start: 12 },
+  { label: '2p', start: 14 },
+  { label: '4p', start: 16 },
+  { label: '6p', start: 18 },
+];
+
+/** Appointment volume by weekday (0=Sun) and time bucket. */
+export type Heatmap = {
+  /** grid[day 0-6][bucket index] = appointment count. */
+  grid: number[][];
+  max: number;
+  total: number;
+  busiest: { day: number; bucket: number; count: number } | null;
+};
+
+/** New vs returning clients in one month. */
+export type RetentionMonth = { key: string; label: string; newClients: number; returning: number };
+
+/** Client retention trend + overall repeat rate. */
+export type Retention = { monthly: RetentionMonth[]; repeatRate: number };
+
+function heatBucket(hour: number): number {
+  if (hour < HEAT_BUCKETS[0].start) return 0;
+  const last = HEAT_BUCKETS.length - 1;
+  if (hour >= HEAT_BUCKETS[last].start + 2) return last;
+  return Math.min(last, Math.floor((hour - HEAT_BUCKETS[0].start) / 2));
+}
+
+/** Appointment heatmap from confirmed/completed bookings. */
+export function bookingHeatmap(bookings: Booking[]): Heatmap {
+  const grid: number[][] = Array.from({ length: 7 }, () => new Array(HEAT_BUCKETS.length).fill(0));
+  let max = 0;
+  let total = 0;
+  let busiest: Heatmap['busiest'] = null;
+  for (const b of bookings) {
+    if (b.status !== 'confirmed' && b.status !== 'completed') continue;
+    const d = new Date(b.startsAt);
+    if (Number.isNaN(d.getTime())) continue;
+    const day = d.getDay();
+    const bucket = heatBucket(d.getHours());
+    const next = grid[day][bucket] + 1;
+    grid[day][bucket] = next;
+    total += 1;
+    if (next > max) {
+      max = next;
+      busiest = { day, bucket, count: next };
+    }
+  }
+  return { grid, max, total, busiest };
+}
+
+/** Last 6 months of new vs returning clients, plus the overall repeat rate. */
+export function clientRetention(bookings: Booking[], now = new Date()): Retention {
+  const real = bookings.filter((b) => b.status === 'confirmed' || b.status === 'completed');
+
+  // First appointment month per client + total visit count.
+  const firstMonth = new Map<string, string>();
+  const visits = new Map<string, number>();
+  for (const b of real) {
+    const d = new Date(b.startsAt);
+    if (Number.isNaN(d.getTime())) continue;
+    const key = monthKey(d);
+    const prev = firstMonth.get(b.clientId);
+    if (!prev || key < prev) firstMonth.set(b.clientId, key);
+    visits.set(b.clientId, (visits.get(b.clientId) ?? 0) + 1);
+  }
+
+  const monthly: RetentionMonth[] = [];
+  const index = new Map<string, number>();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = monthKey(d);
+    index.set(key, monthly.length);
+    monthly.push({
+      key,
+      label: d.toLocaleDateString('en-US', { month: 'short' }),
+      newClients: 0,
+      returning: 0,
+    });
+  }
+
+  // Unique clients seen per month, classified as new (first month) or returning.
+  const seen = new Map<string, Set<string>>();
+  for (const b of real) {
+    const d = new Date(b.startsAt);
+    if (Number.isNaN(d.getTime())) continue;
+    const key = monthKey(d);
+    const at = index.get(key);
+    if (at === undefined) continue;
+    const set = seen.get(key) ?? new Set<string>();
+    if (set.has(b.clientId)) continue;
+    set.add(b.clientId);
+    seen.set(key, set);
+    if (firstMonth.get(b.clientId) === key) monthly[at].newClients += 1;
+    else monthly[at].returning += 1;
+  }
+
+  const unique = visits.size;
+  const repeat = [...visits.values()].filter((n) => n >= 2).length;
+  return { monthly, repeatRate: unique > 0 ? repeat / unique : 0 };
+}
+
+/** Cuts that fall within the chosen date range (for export). */
+export function cutsInRange(cuts: EarningCut[], range: DateRange, now = new Date()): EarningCut[] {
+  const start = rangeStart(range, now);
+  const startMs = start ? start.getTime() : -Infinity;
+  return cuts.filter((c) => {
+    const t = new Date(`${c.date}T00:00:00`).getTime();
+    return Number.isFinite(t) && t >= startMs;
+  });
+}
+
 /** Earnings figures for a chosen date range. */
 export type RangeStats = {
   earned: number; // service + tips
@@ -53,6 +169,10 @@ export type StylistDashboard = {
   uniqueClients: number;
   repeatClients: number;
   topClient: { name: string; count: number } | null;
+  retention: Retention;
+
+  // Scheduling
+  heatmap: Heatmap;
 
   // Earnings (all-time + 6-month trend)
   earnedAllTime: number;
@@ -209,6 +329,8 @@ export function computeStylistDashboard(
     uniqueClients,
     repeatClients,
     topClient,
+    retention: clientRetention(bookings),
+    heatmap: bookingHeatmap(bookings),
     earnedAllTime,
     cutsAllTime: cuts.length,
     monthly,
