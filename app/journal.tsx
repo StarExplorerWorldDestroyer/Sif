@@ -1,15 +1,17 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ScreenHeader } from '@/components/ui/screen-header';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useMoney } from '@/hooks/use-money';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { useRefresh } from '@/hooks/use-refresh';
 import { formatDate } from '@/lib/format';
 import {
   buildJournal,
@@ -26,7 +28,7 @@ export default function JournalScreen() {
   const router = useRouter();
   const money = useMoney();
   const centered = useCenteredContent(640);
-  const { haircuts, loading, fetchAllUpdates } = useHaircuts();
+  const { haircuts, loading, refetch, fetchAllUpdates } = useHaircuts();
   const [updates, setUpdates] = useState<HaircutUpdate[]>([]);
   const [loadingUpdates, setLoadingUpdates] = useState(true);
 
@@ -40,19 +42,18 @@ export default function JournalScreen() {
     reload();
   }, [reload]);
 
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refetch(), reload()]);
+  }, [refetch, reload]);
+  const { refreshing, onRefresh } = useRefresh(refreshAll);
+
   const sections = useMemo(() => buildJournal(haircuts, updates), [haircuts, updates]);
   const summary = useMemo(() => journalSummary(haircuts, updates), [haircuts, updates]);
   const busy = loading || loadingUpdates;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <IconSymbol name="chevron.left" size={26} color={Palette.text} />
-        </Pressable>
-        <Txt variant="heading">Journal</Txt>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader title="Journal" />
 
       {haircuts.length === 0 ? (
         busy ? (
@@ -71,7 +72,10 @@ export default function JournalScreen() {
       ) : (
         <ScrollView
           contentContainerStyle={[styles.content, centered]}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.accent} />
+          }>
           <View style={styles.summary}>
             <Stat value={`${summary.cutCount}`} label={summary.cutCount === 1 ? 'cut' : 'cuts'} />
             <View style={styles.summaryDivider} />
@@ -233,13 +237,6 @@ const RAIL = 28;
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.black },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxl },
   summary: {

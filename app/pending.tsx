@@ -1,9 +1,9 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ScreenHeader } from '@/components/ui/screen-header';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
@@ -12,20 +12,13 @@ import { primaryPhotoUri } from '@/lib/photos';
 import { useHaircuts } from '@/store/haircuts';
 
 export default function PendingScreen() {
-  const router = useRouter();
   const centered = useCenteredContent(640);
   const { pending, acceptPending, rejectPending } = useHaircuts();
   const money = useMoney();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <IconSymbol name="chevron.left" size={26} color={Palette.text} />
-        </Pressable>
-        <Txt variant="heading">From your stylist</Txt>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader title="From your stylist" />
 
       <ScrollView contentContainerStyle={[styles.content, centered]} showsVerticalScrollIndicator={false}>
         {pending.length === 0 ? (
@@ -86,13 +79,6 @@ export default function PendingScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.black },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   empty: { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xxl * 2 },
   muted: { color: Palette.textMuted },

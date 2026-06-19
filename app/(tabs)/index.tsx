@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { CutReminder } from '@/components/cuts/cut-reminder';
 import { HaircutCard } from '@/components/cuts/haircut-card';
@@ -15,13 +15,15 @@ import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useHaircuts } from '@/store/haircuts';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { useRefresh } from '@/hooks/use-refresh';
 import { computeStats, filterByRange, type TimeRange } from '@/lib/format';
 
 export default function CutsScreen() {
   const router = useRouter();
-  const { haircuts, pending, loading } = useHaircuts();
+  const { haircuts, pending, loading, refetch } = useHaircuts();
   const [range, setRange] = useState<TimeRange>('All');
   const centered = useCenteredContent();
+  const { refreshing, onRefresh } = useRefresh(refetch);
 
   const filtered = useMemo(() => filterByRange(haircuts, range), [haircuts, range]);
   const stats = useMemo(() => computeStats(filtered), [filtered]);
@@ -36,16 +38,25 @@ export default function CutsScreen() {
             <Pressable
               style={styles.iconButton}
               hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Hair journal"
               onPress={() => router.push('/journal')}>
               <IconSymbol name="book" size={20} color={Palette.text} />
             </Pressable>
             <Pressable
               style={styles.iconButton}
               hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Insights"
               onPress={() => router.push('/insights')}>
               <IconSymbol name="chart.bar" size={20} color={Palette.text} />
             </Pressable>
-            <Pressable style={styles.addButton} hitSlop={8} onPress={() => router.push('/add')}>
+            <Pressable
+              style={styles.addButton}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Add a cut"
+              onPress={() => router.push('/add')}>
               <IconSymbol name="plus" size={22} color={Palette.black} />
             </Pressable>
           </View>
@@ -56,6 +67,9 @@ export default function CutsScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.content, centered]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.accent} />
+        }
         ListHeaderComponent={
           <View>
             <ProfileCompleteness />

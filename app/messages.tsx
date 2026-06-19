@@ -1,14 +1,16 @@
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ScreenHeader } from '@/components/ui/screen-header';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { useRefresh } from '@/hooks/use-refresh';
 import { useAuth } from '@/store/auth';
 import { useMessages } from '@/store/messages';
 import type { Conversation } from '@/types';
@@ -31,6 +33,7 @@ export default function MessagesScreen() {
   const centered = useCenteredContent(680);
   const { user } = useAuth();
   const { conversations, loading, refetch } = useMessages();
+  const { refreshing, onRefresh } = useRefresh(refetch);
 
   useFocusEffect(
     useCallback(() => {
@@ -40,15 +43,18 @@ export default function MessagesScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <IconSymbol name="chevron.left" size={26} color={Palette.text} />
-        </Pressable>
-        <Txt variant="heading">Messages</Txt>
-        <Pressable onPress={() => router.push('/messages/new')} hitSlop={8}>
-          <IconSymbol name="square.and.pencil" size={26} color={Palette.accent} />
-        </Pressable>
-      </View>
+      <ScreenHeader
+        title="Messages"
+        right={
+          <Pressable
+            onPress={() => router.push('/messages/new')}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="New message">
+            <IconSymbol name="square.and.pencil" size={26} color={Palette.accent} />
+          </Pressable>
+        }
+      />
 
       {loading ? (
         <View style={styles.center}>
@@ -65,7 +71,10 @@ export default function MessagesScreen() {
       ) : (
         <ScrollView
           contentContainerStyle={[styles.content, centered]}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.accent} />
+          }>
           {conversations.map((c) => (
             <Row
               key={c.id}
@@ -130,13 +139,6 @@ function Row({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.black },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   row: {

@@ -1,9 +1,10 @@
 import { Image } from 'expo-image';
-import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   View,
@@ -13,9 +14,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ScreenHeader } from '@/components/ui/screen-header';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { useRefresh } from '@/hooks/use-refresh';
 import { useNotifications } from '@/store/notifications';
 import type { AppNotification } from '@/types';
 
@@ -111,9 +114,9 @@ function timeAgo(iso: string): string {
 }
 
 export default function NotificationsScreen() {
-  const router = useRouter();
   const centered = useCenteredContent(640);
   const { notifications, loading, refetch, markAllRead } = useNotifications();
+  const { refreshing, onRefresh } = useRefresh(refetch);
 
   useFocusEffect(
     useCallback(() => {
@@ -124,13 +127,7 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <IconSymbol name="chevron.left" size={26} color={Palette.text} />
-        </Pressable>
-        <Txt variant="heading">Notifications</Txt>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader title="Notifications" />
 
       {loading ? (
         <View style={styles.center}>
@@ -146,7 +143,10 @@ export default function NotificationsScreen() {
       ) : (
         <ScrollView
           contentContainerStyle={[styles.content, centered]}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.accent} />
+          }>
           {notifications.map((n) => (
             <NotifLink key={n.id} to={href(n)} style={[styles.row, !n.read && styles.unreadRow]}>
               <Avatar uri={n.actor?.avatarUrl ?? ''} type={n.type} />
@@ -213,13 +213,6 @@ function Avatar({ uri, type }: { uri: string; type: AppNotification['type'] }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.black },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg },
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   row: {
