@@ -89,6 +89,7 @@ function RootNavigator() {
       <Stack.Screen name="pending" options={{ headerShown: false }} />
       <Stack.Screen name="notifications" options={{ headerShown: false }} />
       <Stack.Screen name="insights" options={{ headerShown: false }} />
+      <Stack.Screen name="journal" options={{ headerShown: false }} />
       <Stack.Screen name="reminder" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="post/new" options={{ presentation: 'modal', headerShown: false }} />

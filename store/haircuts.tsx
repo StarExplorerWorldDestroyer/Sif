@@ -47,6 +47,8 @@ type HaircutsContextValue = {
   getById: (id: string) => Haircut | undefined;
   // Follow-up timeline (grow-out updates) for a haircut.
   fetchUpdates: (haircutId: string) => Promise<HaircutUpdate[]>;
+  /** All grow-out updates across your cuts, newest first (for the journal). */
+  fetchAllUpdates: () => Promise<HaircutUpdate[]>;
   addUpdate: (
     haircutId: string,
     update: { uri: string; note: string; takenOn: string },
@@ -235,6 +237,17 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
     return (data ?? []).map(rowToUpdate);
   }
 
+  const fetchAllUpdates = useCallback(async (): Promise<HaircutUpdate[]> => {
+    if (!user || haircuts.length === 0) return [];
+    const ids = haircuts.map((h) => h.id);
+    const { data } = await supabase
+      .from('haircut_updates')
+      .select('*')
+      .in('haircut_id', ids)
+      .order('taken_on', { ascending: false });
+    return (data ?? []).map(rowToUpdate);
+  }, [user, haircuts]);
+
   async function addUpdate(
     haircutId: string,
     update: { uri: string; note: string; takenOn: string },
@@ -312,6 +325,7 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
         toggleBookmark,
         getById,
         fetchUpdates,
+        fetchAllUpdates,
         addUpdate,
         deleteUpdate,
       }}>
