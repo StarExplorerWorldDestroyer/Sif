@@ -18,6 +18,7 @@ import { StarPicker, StarRating } from '@/components/ui/stars';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { cancelBooking, fetchMyBookings, updateBookingStatus } from '@/lib/bookings';
+import { getOrCreateConversation } from '@/lib/messages';
 import { fetchMyReviewsByBooking, submitReview } from '@/lib/reviews';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import type { Booking, BookingStatus } from '@/types';
@@ -82,6 +83,14 @@ export default function BookingsScreen() {
 
   const reschedule = useCallback(
     (b: Booking) => router.push(`/book/${b.stylistId}?reschedule=${b.id}`),
+    [router],
+  );
+
+  const message = useCallback(
+    async (b: Booking) => {
+      const cid = await getOrCreateConversation(b.other.id);
+      if (cid) router.push(`/messages/${cid}?other=${b.other.id}`);
+    },
     [router],
   );
 
@@ -175,6 +184,7 @@ export default function BookingsScreen() {
                   onReschedule={reschedule}
                   onCancel={setCancelTarget}
                   onReview={openReview}
+                  onMessage={message}
                 />
               ))}
             </Section>
@@ -191,6 +201,7 @@ export default function BookingsScreen() {
                   onReschedule={reschedule}
                   onCancel={setCancelTarget}
                   onReview={openReview}
+                  onMessage={message}
                 />
               ))}
             </Section>
@@ -207,6 +218,7 @@ export default function BookingsScreen() {
                   onReschedule={reschedule}
                   onCancel={setCancelTarget}
                   onReview={openReview}
+                  onMessage={message}
                 />
               ))}
             </Section>
@@ -316,6 +328,7 @@ function BookingCard({
   onReschedule,
   onCancel,
   onReview,
+  onMessage,
 }: {
   booking: Booking;
   reviewedRating: number | null;
@@ -324,6 +337,7 @@ function BookingCard({
   onReschedule: (booking: Booking) => void;
   onCancel: (booking: Booking) => void;
   onReview: (booking: Booking) => void;
+  onMessage: (booking: Booking) => void;
 }) {
   const { other, role, status } = booking;
   const name = other.displayName || (other.username ? `@${other.username}` : 'Sif user');
@@ -384,8 +398,12 @@ function BookingCard({
         </View>
       ) : null}
 
-      {canRespond || canCancel || canComplete || canCreateCut || canReschedule || canReview ? (
-        <View style={styles.actions}>
+      <View style={styles.actions}>
+          <Pressable style={styles.btn} onPress={() => onMessage(booking)}>
+            <Txt variant="label" color={Palette.text}>
+              Message
+            </Txt>
+          </Pressable>
           {canRespond ? (
             <>
               <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => onAct(booking.id, 'confirmed')}>
@@ -435,8 +453,7 @@ function BookingCard({
               </Txt>
             </Pressable>
           ) : null}
-        </View>
-      ) : null}
+      </View>
     </View>
   );
 }

@@ -8,6 +8,7 @@ import { WebFrame } from '@/components/ui/web-frame';
 import { Palette } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/store/auth';
 import { HaircutsProvider } from '@/store/haircuts';
+import { MessagesProvider } from '@/store/messages';
 import { NotificationsProvider } from '@/store/notifications';
 import { PostsProvider } from '@/store/posts';
 import { ProfileProvider, useProfile } from '@/store/profile';
@@ -96,6 +97,8 @@ function RootNavigator() {
       <Stack.Screen name="likes/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="bookings" options={{ headerShown: false }} />
       <Stack.Screen name="dashboard" options={{ headerShown: false }} />
+      <Stack.Screen name="messages" options={{ headerShown: false }} />
+      <Stack.Screen name="messages/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="book/[id]" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="availability" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="reset" options={{ headerShown: false }} />
@@ -110,16 +113,18 @@ export default function RootLayout() {
       <ProfileProvider>
         <SocialProvider>
           <NotificationsProvider>
-            <HaircutsProvider>
-              <PostsProvider>
-                <ThemeProvider value={AppTheme}>
-                  <WebFrame>
-                    <RootNavigator />
-                  </WebFrame>
-                  <StatusBar style="light" />
-                </ThemeProvider>
-              </PostsProvider>
-            </HaircutsProvider>
+            <MessagesProvider>
+              <HaircutsProvider>
+                <PostsProvider>
+                  <ThemeProvider value={AppTheme}>
+                    <WebFrame>
+                      <RootNavigator />
+                    </WebFrame>
+                    <StatusBar style="light" />
+                  </ThemeProvider>
+                </PostsProvider>
+              </HaircutsProvider>
+            </MessagesProvider>
           </NotificationsProvider>
         </SocialProvider>
       </ProfileProvider>

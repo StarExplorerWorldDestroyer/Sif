@@ -229,6 +229,28 @@ export type PostComment = {
   parentId: string | null;
 };
 
+/** A 1:1 conversation summary for the inbox, with the other party resolved. */
+export type Conversation = {
+  id: string;
+  other: UserSearchResult;
+  lastMessage: string;
+  lastMessageAt: string | null;
+  /** User id of whoever sent the last message (to prefix "You:"). */
+  lastSender: string | null;
+  /** Unread messages from the other party. */
+  unread: number;
+};
+
+/** A single direct message in a conversation. */
+export type DirectMessage = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+};
+
 export type ReminderUnit = 'day' | 'week' | 'month';
 
 /** Ordinal position of a weekday within a month. -1 means "last". */
