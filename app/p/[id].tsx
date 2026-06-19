@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { AppImage as Image } from '@/components/ui/app-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -15,6 +15,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/format';
+import { submitOnEnter } from '@/lib/keyboard';
 import {
   addComment,
   deleteComment,
@@ -240,7 +241,11 @@ export default function PublicPostScreen() {
           )}
         </View>
         {mine && editingId !== c.id ? (
-          <Pressable onPress={() => removeComment(c.id)} hitSlop={8}>
+          <Pressable
+            onPress={() => removeComment(c.id)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Delete comment">
             <IconSymbol name="trash" size={16} color={Palette.textDim} />
           </Pressable>
         ) : null}
@@ -251,7 +256,11 @@ export default function PublicPostScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topbar}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back">
           <IconSymbol name="chevron.left" size={26} color={Palette.text} />
         </Pressable>
         <Txt variant="heading" color={Palette.accent}>
@@ -290,7 +299,12 @@ export default function PublicPostScreen() {
           <Image source={{ uri: post.photoUrl }} style={styles.photo} contentFit="cover" />
 
           <View style={styles.actionRow}>
-            <Pressable style={styles.actionBtn} onPress={toggleLike} hitSlop={8}>
+            <Pressable
+              style={styles.actionBtn}
+              onPress={toggleLike}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={post.likedByMe ? 'Unlike post' : 'Like post'}>
               <IconSymbol
                 name={post.likedByMe ? 'heart.fill' : 'heart'}
                 size={24}
@@ -303,7 +317,9 @@ export default function PublicPostScreen() {
             <Pressable
               style={styles.actionBtn}
               onPress={() => router.push(user ? `/messages/share?post=${post.id}` : '/login')}
-              hitSlop={8}>
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Share post">
               <IconSymbol name="paperplane.fill" size={22} color={Palette.text} />
             </Pressable>
           </View>
@@ -370,7 +386,11 @@ export default function PublicPostScreen() {
                   <Txt variant="caption" color={Palette.textMuted}>
                     Replying to {replyTo.handle}
                   </Txt>
-                  <Pressable onPress={() => setReplyTo(null)} hitSlop={8}>
+                  <Pressable
+                    onPress={() => setReplyTo(null)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel reply">
                     <IconSymbol name="xmark" size={14} color={Palette.textMuted} />
                   </Pressable>
                 </View>
@@ -385,6 +405,7 @@ export default function PublicPostScreen() {
                   style={styles.input}
                   multiline
                   onSubmitEditing={submitComment}
+                  onKeyPress={submitOnEnter(submitComment)}
                 />
                 <Pressable
                   onPress={submitComment}

@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { AppImage as Image } from '@/components/ui/app-image';
 import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import {

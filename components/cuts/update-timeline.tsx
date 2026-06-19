@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { AppImage as Image } from '@/components/ui/app-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
@@ -118,7 +118,11 @@ export function UpdateTimeline({ haircutId }: { haircutId: string }) {
               </Txt>
               {u.note ? <Txt variant="label">{u.note}</Txt> : null}
             </View>
-            <Pressable onPress={() => confirmRemove(u.id)} hitSlop={8}>
+            <Pressable
+              onPress={() => confirmRemove(u.id)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Remove update">
               <IconSymbol name="trash" size={16} color={Palette.textMuted} />
             </Pressable>
           </View>
@@ -178,7 +182,12 @@ export function UpdateTimeline({ haircutId }: { haircutId: string }) {
           {viewing ? (
             <Image source={{ uri: viewing }} style={styles.lightboxImage} contentFit="contain" />
           ) : null}
-          <Pressable style={styles.lightboxClose} onPress={() => setViewing(null)} hitSlop={12}>
+          <Pressable
+            style={styles.lightboxClose}
+            onPress={() => setViewing(null)}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Close photo">
             <IconSymbol name="xmark" size={24} color={Palette.text} />
           </Pressable>
         </Pressable>
