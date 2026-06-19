@@ -12,6 +12,9 @@ expo-env.d.ts
 # Vercel
 .vercel
 
+# Supabase CLI artifacts
+supabase/.temp/
+
 # Native
 .kotlin/
 *.orig.*
