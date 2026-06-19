@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -14,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ScreenHeader } from '@/components/ui/screen-header';
 import { StarPicker, StarRating } from '@/components/ui/stars';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
@@ -21,6 +23,7 @@ import { cancelBooking, fetchMyBookings, updateBookingStatus } from '@/lib/booki
 import { getOrCreateConversation } from '@/lib/messages';
 import { fetchMyReviewsByBooking, submitReview } from '@/lib/reviews';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { useRefresh } from '@/hooks/use-refresh';
 import type { Booking, BookingStatus } from '@/types';
 
 const STATUS_COLOR: Record<BookingStatus, string> = {
@@ -57,6 +60,8 @@ export default function BookingsScreen() {
     setReviews(rv);
     setLoading(false);
   }, []);
+
+  const { refreshing, onRefresh } = useRefresh(load);
 
   useFocusEffect(
     useCallback(() => {
@@ -150,13 +155,7 @@ export default function BookingsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <IconSymbol name="chevron.left" size={26} color={Palette.text} />
-        </Pressable>
-        <Txt variant="heading">Bookings</Txt>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader title="Bookings" />
 
       {loading ? (
         <View style={styles.center}>
@@ -171,7 +170,12 @@ export default function BookingsScreen() {
           onPrimary={() => router.replace('/(tabs)/discover')}
         />
       ) : (
-        <ScrollView contentContainerStyle={[styles.content, centered]} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.content, centered]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.accent} />
+          }>
           {requests.length > 0 ? (
             <Section title="Requests">
               {requests.map((b) => (
@@ -460,13 +464,6 @@ function BookingCard({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.black },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   section: { marginBottom: Spacing.lg },

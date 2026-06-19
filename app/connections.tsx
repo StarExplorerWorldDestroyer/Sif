@@ -1,9 +1,10 @@
 import { Image } from 'expo-image';
-import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   View,
@@ -13,14 +14,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ScreenHeader } from '@/components/ui/screen-header';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { useRefresh } from '@/hooks/use-refresh';
 import { useSocial } from '@/store/social';
 import type { UserSearchResult } from '@/types';
 
 export default function ConnectionsScreen() {
-  const router = useRouter();
   const centered = useCenteredContent(640);
   const { incomingRequests, connectionList, acceptConnection, removeConnection, loading } = useSocial();
 
@@ -28,13 +30,19 @@ export default function ConnectionsScreen() {
   const [connected, setConnected] = useState<UserSearchResult[]>([]);
   const [resolving, setResolving] = useState(true);
 
-  const refresh = useCallback(async () => {
-    setResolving(true);
+  const fetchData = useCallback(async () => {
     const [inc, conn] = await Promise.all([incomingRequests(), connectionList()]);
     setIncoming(inc);
     setConnected(conn);
-    setResolving(false);
   }, [incomingRequests, connectionList]);
+
+  const refresh = useCallback(async () => {
+    setResolving(true);
+    await fetchData();
+    setResolving(false);
+  }, [fetchData]);
+
+  const { refreshing, onRefresh } = useRefresh(fetchData);
 
   useFocusEffect(
     useCallback(() => {
@@ -44,20 +52,19 @@ export default function ConnectionsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <IconSymbol name="chevron.left" size={26} color={Palette.text} />
-        </Pressable>
-        <Txt variant="heading">Connections</Txt>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader title="Connections" />
 
       {loading || resolving ? (
         <View style={styles.center}>
           <ActivityIndicator color={Palette.accent} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.content, centered]} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.content, centered]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.accent} />
+          }>
           {incoming.length > 0 ? (
             <>
               <Txt variant="label" color={Palette.textMuted} style={styles.sectionTitle}>
@@ -171,13 +178,6 @@ function Avatar({ uri }: { uri: string }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.black },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   sectionTitle: { marginTop: Spacing.lg, marginBottom: Spacing.sm, letterSpacing: 1 },

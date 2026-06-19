@@ -34,7 +34,7 @@ export function TabHeader({
       <View style={[styles.row, centered]}>
         {titleHref ? (
           <Link href={titleHref as never} asChild>
-            <Pressable hitSlop={6}>
+            <Pressable hitSlop={6} accessibilityRole="link" accessibilityLabel={`${title}, go to Cuts`}>
               <Txt variant="title">{title}</Txt>
             </Pressable>
           </Link>
@@ -47,6 +47,8 @@ export function TabHeader({
           <Pressable
             style={styles.bellButton}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Messages${unreadTotal > 0 ? `, ${unreadTotal} unread` : ''}`}
             onPress={() => router.push('/messages')}>
             <IconSymbol name="bubble.right" size={22} color={Palette.text} />
             {unreadTotal > 0 ? (
@@ -60,6 +62,8 @@ export function TabHeader({
           <Pressable
             style={styles.bellButton}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
             onPress={() => router.push('/notifications')}>
             <IconSymbol name="bell" size={22} color={Palette.text} />
             {unreadCount > 0 ? (
