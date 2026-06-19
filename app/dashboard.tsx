@@ -12,9 +12,12 @@ import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useMoney } from '@/hooks/use-money';
 import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
 import { updateBookingStatus } from '@/lib/bookings';
+import { earningsCsv, exportCsv } from '@/lib/export';
 import {
+  cutsInRange,
   DATE_RANGES,
   fetchStylistDashboard,
+  HEAT_BUCKETS,
   rangeStats,
   type DateRange,
   type StylistDashboard,
@@ -22,6 +25,8 @@ import {
 import { useAuth } from '@/store/auth';
 import { useProfile } from '@/store/profile';
 import type { Booking } from '@/types';
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function formatWhen(iso: string): string {
   const d = new Date(iso);
@@ -74,9 +79,19 @@ export default function DashboardScreen() {
 
   const stats = useMemo(() => (data ? rangeStats(data.cuts, range) : null), [data, range]);
 
+  const exportEarnings = useCallback(() => {
+    if (!data) return;
+    const rows = cutsInRange(data.cuts, range);
+    if (rows.length === 0) return;
+    exportCsv(`sif-earnings-${range}.csv`, earningsCsv(rows));
+  }, [data, range]);
+
   const isStylist = profile?.isStylist ?? false;
   const maxRev = data ? Math.max(1, ...data.monthly.map((m) => m.revenue)) : 1;
   const maxService = stats ? Math.max(1, ...stats.byService.map((s) => s.revenue)) : 1;
+  const maxRetention = data
+    ? Math.max(1, ...data.retention.monthly.map((m) => m.newClients + m.returning))
+    : 1;
   const half: ViewStyle | undefined = isDesktop ? styles.half : undefined;
 
   return (
@@ -188,7 +203,11 @@ export default function DashboardScreen() {
             ) : null}
 
             {/* Earnings (range) */}
-            <Section title={`Earnings · ${rangeLabel(range)}`} style={half}>
+            <Section
+              title={`Earnings · ${rangeLabel(range)}`}
+              style={half}
+              actionLabel="Export CSV"
+              onAll={stats.count > 0 ? exportEarnings : undefined}>
               <View style={styles.earnTop}>
                 <View>
                   <Txt variant="caption" color={Palette.textMuted}>
@@ -282,6 +301,58 @@ export default function DashboardScreen() {
               <Meter label="Reviews replied" value={pct(data.replyRate)} />
             </Section>
 
+            {/* Busiest times */}
+            <Section title="Busiest times" style={half}>
+              {data.heatmap.total === 0 ? (
+                <Txt variant="caption" color={Palette.textMuted}>
+                  No confirmed appointments yet.
+                </Txt>
+              ) : (
+                <>
+                  <View style={styles.heatRow}>
+                    <View style={styles.heatDayLabel} />
+                    {HEAT_BUCKETS.map((b) => (
+                      <Txt
+                        key={b.label}
+                        variant="caption"
+                        color={Palette.textDim}
+                        style={styles.heatColLabel}>
+                        {b.label}
+                      </Txt>
+                    ))}
+                  </View>
+                  {DAY_NAMES.map((dayName, day) => (
+                    <View key={dayName} style={styles.heatRow}>
+                      <Txt variant="caption" color={Palette.textMuted} style={styles.heatDayLabel}>
+                        {dayName.slice(0, 1)}
+                      </Txt>
+                      {data.heatmap.grid[day].map((count, bucket) => {
+                        const intensity = data.heatmap.max > 0 ? count / data.heatmap.max : 0;
+                        return (
+                          <View key={bucket} style={styles.heatCellWrap}>
+                            <View
+                              style={[
+                                styles.heatCell,
+                                count > 0
+                                  ? { backgroundColor: Palette.accent, opacity: 0.25 + 0.75 * intensity }
+                                  : styles.heatCellEmpty,
+                              ]}
+                            />
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ))}
+                  {data.heatmap.busiest ? (
+                    <Txt variant="caption" color={Palette.textDim} style={styles.heatHint}>
+                      Busiest around {DAY_NAMES[data.heatmap.busiest.day]} ·{' '}
+                      {HEAT_BUCKETS[data.heatmap.busiest.bucket].label}
+                    </Txt>
+                  ) : null}
+                </>
+              )}
+            </Section>
+
             {/* Clients (all-time) */}
             <Section title="Clients" style={half}>
               <View style={styles.grid}>
@@ -291,6 +362,39 @@ export default function DashboardScreen() {
               {data.topClient && data.topClient.count > 1 ? (
                 <Meter label="Top client" value={`${data.topClient.name} · ${data.topClient.count}`} />
               ) : null}
+            </Section>
+
+            {/* Retention */}
+            <Section title="Retention" style={half}>
+              <View style={styles.legendRow}>
+                <Legend color={Palette.success} label="Returning" />
+                <Legend color={Palette.accent} label="New" />
+              </View>
+              <View style={styles.chart}>
+                {data.retention.monthly.map((m) => {
+                  const total = m.newClients + m.returning;
+                  const retFrac = total > 0 ? m.returning / total : 0;
+                  return (
+                    <View key={m.key} style={styles.barCol}>
+                      <View style={styles.barTrack}>
+                        <View
+                          style={[
+                            styles.retStack,
+                            { height: `${Math.max(total > 0 ? 6 : 0, (total / maxRetention) * 100)}%` },
+                          ]}>
+                          <View style={{ flex: 1 - retFrac, backgroundColor: Palette.accent }} />
+                          <View style={{ flex: retFrac, backgroundColor: Palette.success }} />
+                        </View>
+                      </View>
+                      <Txt variant="caption" color={Palette.textDim}>
+                        {m.label}
+                      </Txt>
+                    </View>
+                  );
+                })}
+              </View>
+              <View style={styles.metaDivider} />
+              <Meter label="Repeat rate" value={pct(data.retention.repeatRate)} />
             </Section>
 
             {/* Recent reviews */}
@@ -360,11 +464,13 @@ function ClientFace({ booking }: { booking: Booking }) {
 function Section({
   title,
   onAll,
+  actionLabel = 'View all',
   style,
   children,
 }: {
   title: string;
   onAll?: () => void;
+  actionLabel?: string;
   style?: ViewStyle;
   children: React.ReactNode;
 }) {
@@ -377,7 +483,7 @@ function Section({
         {onAll ? (
           <Pressable onPress={onAll} hitSlop={8}>
             <Txt variant="caption" color={Palette.accent}>
-              View all
+              {actionLabel}
             </Txt>
           </Pressable>
         ) : null}
@@ -426,6 +532,17 @@ function MiniStat({ label, value }: { label: string; value: string }) {
       </Txt>
       <Txt variant="body" color={Palette.text}>
         {value}
+      </Txt>
+    </View>
+  );
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendDot, { backgroundColor: color }]} />
+      <Txt variant="caption" color={Palette.textMuted}>
+        {label}
       </Txt>
     </View>
   );
@@ -569,4 +686,20 @@ const styles = StyleSheet.create({
   reviewRow: { paddingVertical: Spacing.sm, gap: 3 },
   reviewHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.md },
+  heatRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
+  heatDayLabel: { width: 16, textAlign: 'center' },
+  heatColLabel: { flex: 1, textAlign: 'center' },
+  heatCellWrap: { flex: 1, aspectRatio: 1.6 },
+  heatCell: { flex: 1, borderRadius: Radius.sm },
+  heatCellEmpty: { backgroundColor: Palette.surfaceAlt, opacity: 0.5 },
+  heatHint: { marginTop: Spacing.sm, textAlign: 'center' },
+  legendRow: { flexDirection: 'row', gap: Spacing.lg, marginBottom: Spacing.sm },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  retStack: {
+    width: '70%',
+    overflow: 'hidden',
+    borderRadius: Radius.sm,
+    flexDirection: 'column',
+  },
 });
