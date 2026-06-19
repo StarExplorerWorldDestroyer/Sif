@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -27,11 +26,13 @@ import {
 import { toISODate } from '@/lib/reminders';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useAuth } from '@/store/auth';
+import { useFeedback } from '@/store/feedback';
 import type { AvailabilityWindow, BookingSlot, BookingSettings, StylistCard } from '@/types';
 
 export default function BookScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { toast } = useFeedback();
   const { id, reschedule } = useLocalSearchParams<{ id: string; reschedule?: string }>();
   const isReschedule = !!reschedule;
   const centered = useCenteredContent(560);
@@ -96,10 +97,10 @@ export default function BookScreen() {
       const { error } = await rescheduleBooking(reschedule, selected);
       setSubmitting(false);
       if (!error) {
-        Alert.alert('Booking moved', 'Your appointment was rescheduled and sent for confirmation.');
         router.replace('/bookings');
+        toast('Your appointment was rescheduled and sent for confirmation.', { tone: 'success' });
       } else {
-        Alert.alert('Could not reschedule', error);
+        toast(error, { tone: 'error' });
         loadSlots();
       }
       return;
@@ -113,13 +114,15 @@ export default function BookScreen() {
     );
     setSubmitting(false);
     if (bookingId) {
-      Alert.alert('Request sent', 'Your booking request was sent. You’ll be notified when it’s confirmed.');
       router.replace('/bookings');
+      toast('Your booking request was sent. You’ll be notified when it’s confirmed.', {
+        tone: 'success',
+      });
     } else {
-      Alert.alert('Could not book', error ?? 'Something went wrong.');
+      toast(error ?? 'Something went wrong.', { tone: 'error' });
       loadSlots();
     }
-  }, [user, router, selected, settings, submitting, id, note, loadSlots, isReschedule, reschedule]);
+  }, [user, router, selected, settings, submitting, id, note, loadSlots, isReschedule, reschedule, toast]);
 
   const name = stylist?.displayName || stylist?.username || 'this stylist';
 

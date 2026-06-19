@@ -2,7 +2,6 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
-  Alert,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
@@ -23,6 +22,7 @@ import { Palette, Radius, Spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/format';
 import { useMoney } from '@/hooks/use-money';
 import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
+import { useFeedback } from '@/store/feedback';
 import { useHaircuts } from '@/store/haircuts';
 import { angleLabel, type Photo } from '@/types';
 
@@ -30,6 +30,7 @@ export default function HaircutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { getById, toggleLike, toggleBookmark, deleteHaircut } = useHaircuts();
+  const { confirm } = useFeedback();
   const money = useMoney();
   const centered = useCenteredContent(640);
 
@@ -51,18 +52,16 @@ export default function HaircutDetailScreen() {
 
   const { stylist } = haircut;
 
-  function confirmDelete() {
-    Alert.alert('Delete haircut?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteHaircut(haircut!.id);
-          router.back();
-        },
-      },
-    ]);
+  async function confirmDelete() {
+    const ok = await confirm({
+      title: 'Delete haircut?',
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteHaircut(haircut!.id);
+    router.back();
   }
 
   return (

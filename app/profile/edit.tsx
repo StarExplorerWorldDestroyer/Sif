@@ -19,11 +19,13 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { useFeedback } from '@/store/feedback';
 import { useProfile } from '@/store/profile';
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { profile, updateProfile, uploadAndSetAvatar } = useProfile();
+  const { toast } = useFeedback();
   const centered = useCenteredContent(640);
 
   const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
@@ -50,7 +52,7 @@ export default function EditProfileScreen() {
     setUploadingAvatar(true);
     const { error } = await uploadAndSetAvatar(result.assets[0].uri);
     setUploadingAvatar(false);
-    if (error) Alert.alert('Could not upload', error);
+    if (error) toast(error, { tone: 'error' });
   }
 
   async function handleSave() {
@@ -65,11 +67,11 @@ export default function EditProfileScreen() {
     });
     setSaving(false);
     if (error) {
-      Alert.alert(
-        'Could not save',
+      toast(
         error.includes('duplicate') || error.includes('unique')
           ? 'That username is already taken. Try another.'
           : error,
+        { tone: 'error' },
       );
       return;
     }

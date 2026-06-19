@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
 import { ProfileLinks } from '@/components/profile/profile-links';
 import { PostsGrid } from '@/components/profile/posts-grid';
@@ -12,6 +12,7 @@ import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { fetchFollowCounts } from '@/lib/public';
 import { useAuth } from '@/store/auth';
+import { useFeedback } from '@/store/feedback';
 import { useHaircuts } from '@/store/haircuts';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useProfile } from '@/store/profile';
@@ -24,6 +25,7 @@ export default function ProfileScreen() {
   const { profile } = useProfile();
   const { haircuts } = useHaircuts();
   const { connectionCount, incomingCount } = useSocial();
+  const { toast } = useFeedback();
   const centered = useCenteredContent();
   const [counts, setCounts] = useState<FollowCounts>({ followers: 0, following: 0 });
 
@@ -42,20 +44,17 @@ export default function ProfileScreen() {
 
   async function shareProfile() {
     if (!profile?.username) {
-      Alert.alert('Set a username first', 'Add a username in Edit Profile so people can find you.');
+      toast('Add a username in Edit Profile so people can find you.');
       return;
     }
     if (profile.privacy !== 'public') {
-      Alert.alert(
-        'Your profile isn’t public',
-        'Set your profile to Public in Settings so anyone with the link can view it.',
-      );
+      toast('Set your profile to Public in Settings so anyone with the link can view it.');
       return;
     }
     const url = `${origin}/u/${profile.username}`;
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(url);
-      Alert.alert('Link copied', url);
+      toast('Profile link copied to clipboard.', { tone: 'success' });
     } else {
       await Share.share({ message: url, url });
     }

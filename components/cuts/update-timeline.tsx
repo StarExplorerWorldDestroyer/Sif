@@ -9,6 +9,7 @@ import { Txt } from '@/components/ui/text';
 import { FontSize, Palette, Radius, Spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/format';
 import { toISODate } from '@/lib/reminders';
+import { useFeedback } from '@/store/feedback';
 import { useHaircuts } from '@/store/haircuts';
 import type { HaircutUpdate } from '@/types';
 
@@ -20,6 +21,7 @@ const today = () => toISODate(new Date());
  */
 export function UpdateTimeline({ haircutId }: { haircutId: string }) {
   const { fetchUpdates, addUpdate, deleteUpdate } = useHaircuts();
+  const { confirm, toast } = useFeedback();
   const [updates, setUpdates] = useState<HaircutUpdate[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -82,24 +84,22 @@ export function UpdateTimeline({ haircutId }: { haircutId: string }) {
       setTakenOn(today());
       await reload();
     } catch {
-      Alert.alert('Could not save', 'Something went wrong adding your update. Please try again.');
+      toast('Something went wrong adding your update. Please try again.', { tone: 'error' });
     } finally {
       setSaving(false);
     }
   }
 
-  function confirmRemove(id: string) {
-    Alert.alert('Remove update?', 'This deletes this photo and note.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          setUpdates((prev) => prev.filter((u) => u.id !== id));
-          await deleteUpdate(id);
-        },
-      },
-    ]);
+  async function confirmRemove(id: string) {
+    const ok = await confirm({
+      title: 'Remove update?',
+      message: 'This deletes this photo and note.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    setUpdates((prev) => prev.filter((u) => u.id !== id));
+    await deleteUpdate(id);
   }
 
   return (

@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StylistPicker } from '@/components/social/stylist-picker';
@@ -13,6 +13,7 @@ import { fetchCardsByIds } from '@/lib/public';
 import { primaryPhotoUri } from '@/lib/photos';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useAuth } from '@/store/auth';
+import { useFeedback } from '@/store/feedback';
 import { useHaircuts } from '@/store/haircuts';
 import { usePosts } from '@/store/posts';
 import { useProfile } from '@/store/profile';
@@ -25,6 +26,7 @@ export default function PostScreen() {
   const { getById: getHaircut } = useHaircuts();
   const { profile } = useProfile();
   const { user } = useAuth();
+  const { confirm, prompt } = useFeedback();
   const centered = useCenteredContent(560);
 
   const post = getPost(id);
@@ -63,28 +65,27 @@ export default function PostScreen() {
     );
   }
 
-  function editCaption() {
-    Alert.prompt(
-      'Edit caption',
-      undefined,
-      (text) => updatePost(post!.id, text ?? ''),
-      'plain-text',
-      post!.caption,
-    );
+  async function editCaption() {
+    const text = await prompt({
+      title: 'Edit caption',
+      placeholder: 'Write a caption…',
+      defaultValue: post!.caption,
+      multiline: true,
+      confirmLabel: 'Save',
+    });
+    if (text !== null) updatePost(post!.id, text);
   }
 
-  function confirmDelete() {
-    Alert.alert('Delete post?', 'This removes it from your profile. The haircut stays saved.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await deletePost(post!.id);
-          router.back();
-        },
-      },
-    ]);
+  async function confirmDelete() {
+    const ok = await confirm({
+      title: 'Delete post?',
+      message: 'This removes it from your profile. The haircut stays saved.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    await deletePost(post!.id);
+    router.back();
   }
 
   return (

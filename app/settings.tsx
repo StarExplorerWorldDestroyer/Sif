@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Txt } from '@/components/ui/text';
@@ -16,6 +16,7 @@ import { useCenteredContent } from '@/hooks/use-responsive';
 import { describeRule, formatReminderDate, nextReminderDate } from '@/lib/reminders';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
+import { useFeedback } from '@/store/feedback';
 import { useProfile } from '@/store/profile';
 import { PRIVACY_OPTIONS, type Units } from '@/types';
 
@@ -25,6 +26,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user, signOut, sendPasswordReset } = useAuth();
   const { profile, updateProfile } = useProfile();
+  const { toast, confirm } = useFeedback();
   const centered = useCenteredContent(640);
 
   const [busy, setBusy] = useState(false);
@@ -44,11 +46,11 @@ export default function SettingsScreen() {
         setPushOn(true);
       } else {
         setPushOn(false);
-        Alert.alert(
-          'Notifications not enabled',
+        toast(
           result === 'denied'
             ? 'Your browser blocked notifications. Allow them in your browser settings to turn this on.'
             : 'Could not enable push notifications on this device.',
+          { tone: 'error' },
         );
       }
     } else {
@@ -72,30 +74,27 @@ export default function SettingsScreen() {
     setBusy(true);
     const { error } = await sendPasswordReset(user.email);
     setBusy(false);
-    Alert.alert(
-      error ? 'Error' : 'Check your email',
-      error ? error : `We sent a password reset link to ${user.email}. Open it to set a new password.`,
-    );
+    if (error) {
+      toast(error, { tone: 'error' });
+    } else {
+      toast(`We sent a password reset link to ${user.email}. Open it to set a new password.`, {
+        tone: 'success',
+      });
+    }
   }
 
-  function confirmDelete() {
-    Alert.alert(
-      'Delete account data?',
-      'This permanently deletes all your haircuts and profile, then signs you out. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            if (!user) return;
-            await supabase.from('haircuts').delete().eq('user_id', user.id);
-            await supabase.from('profiles').delete().eq('id', user.id);
-            await signOut();
-          },
-        },
-      ],
-    );
+  async function confirmDelete() {
+    const ok = await confirm({
+      title: 'Delete account data?',
+      message:
+        'This permanently deletes all your haircuts and profile, then signs you out. This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok || !user) return;
+    await supabase.from('haircuts').delete().eq('user_id', user.id);
+    await supabase.from('profiles').delete().eq('id', user.id);
+    await signOut();
   }
 
   return (
