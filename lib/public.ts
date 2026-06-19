@@ -154,6 +154,14 @@ export async function fetchPublicPost(id: string): Promise<PublicPost | null> {
   return withAuthor ?? null;
 }
 
+/** Public posts for a set of ids, each with its author (order not guaranteed). */
+export async function fetchPublicPostsByIds(ids: string[]): Promise<PublicPost[]> {
+  const unique = Array.from(new Set(ids.filter(Boolean)));
+  if (unique.length === 0) return [];
+  const { data } = await supabase.from('posts').select('*').in('id', unique);
+  return withAuthors(data ?? []);
+}
+
 /** Recent public posts across everyone (the Explore feed). */
 export async function fetchPublicFeed(limit = 50): Promise<PublicPost[]> {
   const { data } = await supabase

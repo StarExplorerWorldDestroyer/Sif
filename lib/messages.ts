@@ -18,6 +18,7 @@ function rowToMessage(row: any): DirectMessage {
     senderId: row.sender_id,
     body: row.body ?? '',
     imageUrl: row.image_url ?? null,
+    postId: row.post_id ?? null,
     createdAt: row.created_at,
     readAt: row.read_at ?? null,
   };
@@ -73,17 +74,23 @@ export async function fetchMessages(conversationId: string): Promise<DirectMessa
   return (data ?? []).map(rowToMessage);
 }
 
-/** Send a message (text and/or photo); returns it or null on failure. */
+/** Send a message (text, photo, and/or shared post); returns it or null. */
 export async function sendMessage(
   conversationId: string,
   body: string,
   imageUrl?: string | null,
+  postId?: string | null,
 ): Promise<DirectMessage | null> {
   const text = body.trim();
-  if (!text && !imageUrl) return null;
+  if (!text && !imageUrl && !postId) return null;
   const { data, error } = await supabase
     .from('messages')
-    .insert({ conversation_id: conversationId, body: text, image_url: imageUrl ?? null })
+    .insert({
+      conversation_id: conversationId,
+      body: text,
+      image_url: imageUrl ?? null,
+      post_id: postId ?? null,
+    })
     .select()
     .single();
   if (error || !data) return null;

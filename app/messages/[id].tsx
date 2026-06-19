@@ -27,11 +27,11 @@ import {
   sendMessage,
 } from '@/lib/messages';
 import { uploadMessagePhoto } from '@/lib/photos';
-import { fetchCardsByIds } from '@/lib/public';
+import { fetchCardsByIds, fetchPublicPostsByIds } from '@/lib/public';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
 import { useMessages } from '@/store/messages';
-import type { DirectMessage, UserSearchResult } from '@/types';
+import type { DirectMessage, PublicPost, UserSearchResult } from '@/types';
 
 function dayLabel(iso: string): string {
   const d = new Date(iso);
@@ -62,7 +62,12 @@ export default function ThreadScreen() {
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [otherTyping, setOtherTyping] = useState(false);
+  const [sharedPosts, setSharedPosts] = useState<Record<string, PublicPost>>({});
   const scrollRef = useRef<ScrollView>(null);
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const lastTypingSentRef = useRef(0);
+  const typingClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scrollToEnd = useCallback(() => {
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
@@ -131,6 +136,7 @@ export default function ThreadScreen() {
                     senderId: m.sender_id,
                     body: m.body ?? '',
                     imageUrl: m.image_url ?? null,
+                    postId: m.post_id ?? null,
                     createdAt: m.created_at,
                     readAt: m.read_at ?? null,
                   },
@@ -163,6 +169,70 @@ export default function ThreadScreen() {
     };
   }, [conversationId, user, markRead, scrollToEnd]);
 
+  // Ephemeral typing indicator over a broadcast channel (no DB writes).
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase.channel(`typing:${conversationId}`, {
+      config: { broadcast: { self: false } },
+    });
+    channel
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (payload?.userId === user.id) return;
+        setOtherTyping(true);
+        if (typingClearTimer.current) clearTimeout(typingClearTimer.current);
+        typingClearTimer.current = setTimeout(() => setOtherTyping(false), 3500);
+      })
+      .on('broadcast', { event: 'stop_typing' }, ({ payload }) => {
+        if (payload?.userId === user.id) return;
+        setOtherTyping(false);
+      })
+      .subscribe();
+    typingChannelRef.current = channel;
+    return () => {
+      if (typingClearTimer.current) clearTimeout(typingClearTimer.current);
+      supabase.removeChannel(channel);
+      typingChannelRef.current = null;
+    };
+  }, [conversationId, user]);
+
+  // Resolve shared posts referenced by messages (fetch any we don't have yet).
+  useEffect(() => {
+    const missing = Array.from(
+      new Set(messages.map((m) => m.postId).filter((id): id is string => !!id)),
+    ).filter((id) => !sharedPosts[id]);
+    if (missing.length === 0) return;
+    let active = true;
+    (async () => {
+      const posts = await fetchPublicPostsByIds(missing);
+      if (!active || posts.length === 0) return;
+      setSharedPosts((prev) => {
+        const next = { ...prev };
+        for (const p of posts) next[p.id] = p;
+        return next;
+      });
+    })();
+    return () => {
+      active = false;
+    };
+  }, [messages, sharedPosts]);
+
+  const onChangeDraft = useCallback(
+    (text: string) => {
+      setDraft(text);
+      if (!user || !typingChannelRef.current) return;
+      const now = Date.now();
+      if (text.length > 0 && now - lastTypingSentRef.current > 1500) {
+        lastTypingSentRef.current = now;
+        typingChannelRef.current.send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: { userId: user.id },
+        });
+      }
+    },
+    [user],
+  );
+
   const send = useCallback(async () => {
     const text = draft.trim();
     const localImage = pendingImage;
@@ -170,6 +240,12 @@ export default function ThreadScreen() {
     setSending(true);
     setDraft('');
     setPendingImage(null);
+    lastTypingSentRef.current = 0;
+    typingChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'stop_typing',
+      payload: { userId: user.id },
+    });
     let imageUrl: string | null = null;
     if (localImage) {
       try {
@@ -305,6 +381,13 @@ export default function ThreadScreen() {
                             <Image source={{ uri: m.imageUrl }} style={styles.messageImage} contentFit="cover" />
                           </Pressable>
                         ) : null}
+                        {m.postId ? (
+                          <SharedPostCard
+                            post={sharedPosts[m.postId]}
+                            mine={mine}
+                            onPress={() => router.push(`/p/${m.postId}`)}
+                          />
+                        ) : null}
                         {m.body ? (
                           <Txt
                             variant="body"
@@ -330,6 +413,15 @@ export default function ThreadScreen() {
                 );
               })
             )}
+            {otherTyping ? (
+              <View style={[styles.bubbleRow, styles.bubbleRowTheirs]}>
+                <View style={[styles.bubble, styles.bubbleTheirs, styles.typingBubble]}>
+                  <Txt variant="label" color={Palette.textMuted}>
+                    {name.split(' ')[0]} is typing…
+                  </Txt>
+                </View>
+              </View>
+            ) : null}
           </ScrollView>
         )}
 
@@ -351,7 +443,7 @@ export default function ThreadScreen() {
             </Pressable>
             <TextInput
               value={draft}
-              onChangeText={setDraft}
+              onChangeText={onChangeDraft}
               placeholder="Message…"
               placeholderTextColor={Palette.textDim}
               style={styles.input}
@@ -389,6 +481,57 @@ export default function ThreadScreen() {
   );
 }
 
+function SharedPostCard({
+  post,
+  mine,
+  onPress,
+}: {
+  post: PublicPost | undefined;
+  mine: boolean;
+  onPress: () => void;
+}) {
+  const author = post
+    ? post.author.username
+      ? `@${post.author.username}`
+      : post.author.displayName || 'Sif user'
+    : null;
+  return (
+    <Pressable style={[styles.sharedCard, mine ? styles.sharedCardMine : null]} onPress={onPress}>
+      {post?.photoUrl ? (
+        <Image source={{ uri: post.photoUrl }} style={styles.sharedThumb} contentFit="cover" />
+      ) : (
+        <View style={[styles.sharedThumb, styles.avatarPlaceholder]}>
+          <IconSymbol name="scissors" size={18} color={Palette.textMuted} />
+        </View>
+      )}
+      <View style={styles.sharedMeta}>
+        <Txt variant="caption" color={mine ? 'rgba(0,0,0,0.55)' : Palette.textDim}>
+          Shared a post
+        </Txt>
+        {post ? (
+          <>
+            <Txt variant="label" color={mine ? Palette.black : Palette.text} numberOfLines={1}>
+              {author}
+            </Txt>
+            {post.caption ? (
+              <Txt
+                variant="caption"
+                color={mine ? 'rgba(0,0,0,0.7)' : Palette.textMuted}
+                numberOfLines={2}>
+                {post.caption}
+              </Txt>
+            ) : null}
+          </>
+        ) : (
+          <Txt variant="caption" color={mine ? 'rgba(0,0,0,0.7)' : Palette.textMuted}>
+            Tap to view
+          </Txt>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.black },
   header: {
@@ -413,8 +556,21 @@ const styles = StyleSheet.create({
   bubbleMine: { backgroundColor: Palette.accent, borderBottomRightRadius: Radius.sm },
   bubbleTheirs: { backgroundColor: Palette.surfaceAlt, borderBottomLeftRadius: Radius.sm },
   bubbleImageOnly: { padding: 4 },
+  typingBubble: { paddingVertical: Spacing.sm },
   messageImage: { width: 220, height: 220, borderRadius: Radius.md, backgroundColor: Palette.surface },
   captionAfterImage: { marginTop: Spacing.sm },
+  sharedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    width: 240,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+  },
+  sharedCardMine: { backgroundColor: 'rgba(0,0,0,0.12)' },
+  sharedThumb: { width: 52, height: 52, borderRadius: Radius.sm, backgroundColor: Palette.surface },
+  sharedMeta: { flex: 1, gap: 1 },
   time: { marginTop: 2, alignSelf: 'flex-end' },
   seen: { alignSelf: 'flex-end', marginTop: 2, marginRight: 2 },
   composerWrap: {
