@@ -96,6 +96,8 @@ export default function LoginScreen() {
             onChangeText={setPassword}
             secureTextEntry
             autoCapitalize="none"
+            returnKeyType="go"
+            onSubmitEditing={submit}
           />
 
           {error ? (

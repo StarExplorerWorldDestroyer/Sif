@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { AppImage as Image } from '@/components/ui/app-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';

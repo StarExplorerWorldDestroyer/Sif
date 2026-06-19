@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { AppImage as Image } from '@/components/ui/app-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -76,7 +76,12 @@ export default function HaircutDetailScreen() {
 
         {/* Social action bar */}
         <View style={styles.socialBar}>
-          <Pressable style={styles.socialItem} onPress={() => toggleLike(haircut.id)} hitSlop={8}>
+          <Pressable
+            style={styles.socialItem}
+            onPress={() => toggleLike(haircut.id)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={haircut.liked ? 'Unlike' : 'Like'}>
             <IconSymbol
               name={haircut.liked ? 'heart.fill' : 'heart'}
               size={22}
@@ -96,7 +101,11 @@ export default function HaircutDetailScreen() {
 
           <View style={styles.spacer} />
 
-          <Pressable onPress={() => toggleBookmark(haircut.id)} hitSlop={8}>
+          <Pressable
+            onPress={() => toggleBookmark(haircut.id)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={haircut.bookmarked ? 'Remove bookmark' : 'Bookmark'}>
             <IconSymbol
               name={haircut.bookmarked ? 'bookmark.fill' : 'bookmark'}
               size={22}
@@ -364,14 +373,18 @@ function Gallery({ photos }: { photos: Photo[] }) {
       {showArrows && index > 0 ? (
         <Pressable
           style={[styles.navArrow, styles.navLeft, { top: size / 2 - 20, opacity: hovered ? 1 : 0 }]}
-          onPress={() => go(-1)}>
+          onPress={() => go(-1)}
+          accessibilityRole="button"
+          accessibilityLabel="Previous photo">
           <IconSymbol name="chevron.left" size={26} color={Palette.text} />
         </Pressable>
       ) : null}
       {showArrows && index < photos.length - 1 ? (
         <Pressable
           style={[styles.navArrow, styles.navRight, { top: size / 2 - 20, opacity: hovered ? 1 : 0 }]}
-          onPress={() => go(1)}>
+          onPress={() => go(1)}
+          accessibilityRole="button"
+          accessibilityLabel="Next photo">
           <IconSymbol name="chevron.right" size={26} color={Palette.text} />
         </Pressable>
       ) : null}
@@ -402,12 +415,12 @@ function Header({
 }) {
   return (
     <View style={styles.header}>
-      <Pressable onPress={onBack} hitSlop={8}>
+      <Pressable onPress={onBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Go back">
         <IconSymbol name="chevron.left" size={26} color={Palette.text} />
       </Pressable>
       <Txt variant="heading">Haircut Details</Txt>
       {onEdit ? (
-        <Pressable onPress={onEdit} hitSlop={8}>
+        <Pressable onPress={onEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit haircut">
           <IconSymbol name="pencil" size={20} color={Palette.text} />
         </Pressable>
       ) : (

@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { AppImage as Image } from '@/components/ui/app-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';

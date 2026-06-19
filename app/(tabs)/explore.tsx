@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { AppImage as Image } from '@/components/ui/app-image';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -86,7 +86,11 @@ export default function ExploreScreen() {
             style={styles.searchInput}
           />
           {query.length > 0 ? (
-            <Pressable onPress={() => setQuery('')} hitSlop={8}>
+            <Pressable
+              onPress={() => setQuery('')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search">
               <IconSymbol name="xmark" size={16} color={Palette.textMuted} />
             </Pressable>
           ) : null}
@@ -203,7 +207,12 @@ export default function ExploreScreen() {
                     ) : null}
                   </Pressable>
                   <View style={styles.engageRow}>
-                    <Pressable style={styles.engageBtn} onPress={() => toggleLike(post)} hitSlop={8}>
+                    <Pressable
+                      style={styles.engageBtn}
+                      onPress={() => toggleLike(post)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={post.likedByMe ? 'Unlike post' : 'Like post'}>
                       <IconSymbol
                         name={post.likedByMe ? 'heart.fill' : 'heart'}
                         size={18}
@@ -218,7 +227,9 @@ export default function ExploreScreen() {
                     <Pressable
                       style={styles.engageBtn}
                       onPress={() => router.push(`/p/${post.id}`)}
-                      hitSlop={8}>
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="View comments">
                       <IconSymbol name="bubble.right" size={18} color={Palette.textMuted} />
                       {post.commentCount > 0 ? (
                         <Txt variant="caption" color={Palette.textMuted}>

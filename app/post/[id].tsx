@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { AppImage as Image } from '@/components/ui/app-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -54,7 +54,11 @@ export default function PostScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Go back">
             <IconSymbol name="chevron.left" size={26} color={Palette.text} />
           </Pressable>
         </View>
@@ -91,15 +95,27 @@ export default function PostScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back">
           <IconSymbol name="chevron.left" size={26} color={Palette.text} />
         </Pressable>
         <Txt variant="heading">Post</Txt>
         <View style={styles.headerActions}>
-          <Pressable onPress={editCaption} hitSlop={8}>
+          <Pressable
+            onPress={editCaption}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Edit caption">
             <IconSymbol name="pencil" size={20} color={Palette.text} />
           </Pressable>
-          <Pressable onPress={confirmDelete} hitSlop={8}>
+          <Pressable
+            onPress={confirmDelete}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Delete post">
             <IconSymbol name="trash" size={20} color={Palette.accent} />
           </Pressable>
         </View>

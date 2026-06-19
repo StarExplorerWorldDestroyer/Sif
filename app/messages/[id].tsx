@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { AppImage as Image } from '@/components/ui/app-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -26,6 +26,7 @@ import {
   markConversationRead,
   sendMessage,
 } from '@/lib/messages';
+import { submitOnEnter } from '@/lib/keyboard';
 import { uploadMessagePhoto } from '@/lib/photos';
 import { fetchCardsByIds, fetchPublicPostsByIds } from '@/lib/public';
 import { supabase } from '@/lib/supabase';
@@ -320,7 +321,11 @@ export default function ThreadScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back">
           <IconSymbol name="chevron.left" size={26} color={Palette.text} />
         </Pressable>
         <Pressable
@@ -434,13 +439,21 @@ export default function ThreadScreen() {
               <Pressable
                 style={styles.previewRemove}
                 onPress={() => setPendingImage(null)}
-                hitSlop={8}>
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Remove photo">
                 <IconSymbol name="xmark" size={14} color={Palette.text} />
               </Pressable>
             </View>
           ) : null}
           <View style={styles.composer}>
-            <Pressable style={styles.attach} onPress={choosePhoto} hitSlop={8} disabled={sending}>
+            <Pressable
+              style={styles.attach}
+              onPress={choosePhoto}
+              hitSlop={8}
+              disabled={sending}
+              accessibilityRole="button"
+              accessibilityLabel="Attach photo">
               <IconSymbol name="camera.fill" size={22} color={Palette.textMuted} />
             </Pressable>
             <TextInput
@@ -451,6 +464,7 @@ export default function ThreadScreen() {
               style={styles.input}
               multiline
               onSubmitEditing={send}
+              onKeyPress={submitOnEnter(send)}
             />
             <Pressable
               style={[
@@ -458,7 +472,9 @@ export default function ThreadScreen() {
                 ((!draft.trim() && !pendingImage) || sending) && styles.sendDisabled,
               ]}
               onPress={send}
-              disabled={(!draft.trim() && !pendingImage) || sending}>
+              disabled={(!draft.trim() && !pendingImage) || sending}
+              accessibilityRole="button"
+              accessibilityLabel="Send message">
               {sending ? (
                 <ActivityIndicator color={Palette.black} size="small" />
               ) : (
@@ -474,7 +490,12 @@ export default function ThreadScreen() {
           {viewing ? (
             <Image source={{ uri: viewing }} style={styles.lightboxImage} contentFit="contain" />
           ) : null}
-          <Pressable style={styles.lightboxClose} onPress={() => setViewing(null)} hitSlop={8}>
+          <Pressable
+            style={styles.lightboxClose}
+            onPress={() => setViewing(null)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close photo">
             <IconSymbol name="xmark" size={26} color={Palette.text} />
           </Pressable>
         </Pressable>
