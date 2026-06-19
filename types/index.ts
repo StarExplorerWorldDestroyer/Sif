@@ -250,6 +250,8 @@ export type DirectMessage = {
   body: string;
   /** Optional photo attachment (public URL), null for text-only messages. */
   imageUrl: string | null;
+  /** Optional shared post id, rendered as a card in the thread. */
+  postId: string | null;
   createdAt: string;
   readAt: string | null;
 };

@@ -300,6 +300,12 @@ export default function PublicPostScreen() {
             <View style={styles.actionBtn}>
               <IconSymbol name="bubble.right" size={22} color={Palette.text} />
             </View>
+            <Pressable
+              style={styles.actionBtn}
+              onPress={() => router.push(user ? `/messages/share?post=${post.id}` : '/login')}
+              hitSlop={8}>
+              <IconSymbol name="paperplane.fill" size={22} color={Palette.text} />
+            </Pressable>
           </View>
 
           <View style={styles.body}>
