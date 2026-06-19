@@ -55,6 +55,7 @@ const MAPPING = {
   'chart.bar': 'bar-chart',
   'calendar': 'event',
   'minus': 'remove',
+  'square.and.pencil': 'edit-note',
 } as IconMapping;
 
 /**

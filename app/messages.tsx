@@ -45,7 +45,9 @@ export default function MessagesScreen() {
           <IconSymbol name="chevron.left" size={26} color={Palette.text} />
         </Pressable>
         <Txt variant="heading">Messages</Txt>
-        <View style={{ width: 26 }} />
+        <Pressable onPress={() => router.push('/messages/new')} hitSlop={8}>
+          <IconSymbol name="square.and.pencil" size={26} color={Palette.accent} />
+        </Pressable>
       </View>
 
       {loading ? (
@@ -56,7 +58,9 @@ export default function MessagesScreen() {
         <EmptyState
           icon="bubble.right"
           title="No messages yet"
-          subtitle="Start a conversation from someone's profile or a booking. Your chats show up here."
+          subtitle="Start a conversation here, or from someone's profile or a booking. Your chats show up here."
+          primaryLabel="New message"
+          onPrimary={() => router.push('/messages/new')}
         />
       ) : (
         <ScrollView
