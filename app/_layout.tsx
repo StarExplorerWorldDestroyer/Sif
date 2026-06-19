@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 import { WebFrame } from '@/components/ui/web-frame';
 import { Palette } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/store/auth';
+import { FeedbackProvider } from '@/store/feedback';
 import { HaircutsProvider } from '@/store/haircuts';
 import { MessagesProvider } from '@/store/messages';
 import { NotificationsProvider } from '@/store/notifications';
@@ -120,9 +121,11 @@ export default function RootLayout() {
               <HaircutsProvider>
                 <PostsProvider>
                   <ThemeProvider value={AppTheme}>
-                    <WebFrame>
-                      <RootNavigator />
-                    </WebFrame>
+                    <FeedbackProvider>
+                      <WebFrame>
+                        <RootNavigator />
+                      </WebFrame>
+                    </FeedbackProvider>
                     <StatusBar style="light" />
                   </ThemeProvider>
                 </PostsProvider>

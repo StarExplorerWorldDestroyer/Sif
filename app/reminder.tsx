@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DatePickerField } from '@/components/ui/date-picker-field';
@@ -18,6 +18,7 @@ import {
   relativeDays,
   toISODate,
 } from '@/lib/reminders';
+import { useFeedback } from '@/store/feedback';
 import { useProfile } from '@/store/profile';
 import type { ReminderOrdinal, ReminderRule, ReminderUnit } from '@/types';
 
@@ -58,6 +59,7 @@ function Pill({
 export default function ReminderScreen() {
   const router = useRouter();
   const { profile, updateProfile } = useProfile();
+  const { toast } = useFeedback();
   const centered = useCenteredContent(640);
   const { postcut, from } = useLocalSearchParams<{ postcut?: string; from?: string }>();
   const isPostCut = postcut === '1';
@@ -112,7 +114,7 @@ export default function ReminderScreen() {
     });
     setSaving(false);
     if (error) {
-      Alert.alert('Could not save reminder', error);
+      toast(error, { tone: 'error' });
       return;
     }
     router.back();

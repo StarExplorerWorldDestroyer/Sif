@@ -30,6 +30,7 @@ import { uploadMessagePhoto } from '@/lib/photos';
 import { fetchCardsByIds, fetchPublicPostsByIds } from '@/lib/public';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
+import { useFeedback } from '@/store/feedback';
 import { useMessages } from '@/store/messages';
 import type { DirectMessage, PublicPost, UserSearchResult } from '@/types';
 
@@ -53,6 +54,7 @@ export default function ThreadScreen() {
   const conversationId = params.id;
   const centered = useCenteredContent(680);
   const { user } = useAuth();
+  const { toast } = useFeedback();
   const { refetch: refetchInbox } = useMessages();
 
   const [other, setOther] = useState<UserSearchResult | null>(null);
@@ -254,7 +256,7 @@ export default function ThreadScreen() {
         setSending(false);
         setDraft(text);
         setPendingImage(localImage);
-        Alert.alert('Upload failed', 'Could not send the photo. Please try again.');
+        toast('Could not send the photo. Please try again.', { tone: 'error' });
         return;
       }
     }
@@ -268,7 +270,7 @@ export default function ThreadScreen() {
       setDraft(text);
       setPendingImage(localImage);
     }
-  }, [draft, pendingImage, sending, user, conversationId, refetchInbox, scrollToEnd]);
+  }, [draft, pendingImage, sending, user, conversationId, refetchInbox, scrollToEnd, toast]);
 
   const pickImage = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();

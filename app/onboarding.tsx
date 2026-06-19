@@ -20,6 +20,7 @@ import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useAuth } from '@/store/auth';
+import { useFeedback } from '@/store/feedback';
 import { useProfile } from '@/store/profile';
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
@@ -36,6 +37,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { profile, updateProfile, uploadAndSetAvatar } = useProfile();
+  const { toast } = useFeedback();
   const centered = useCenteredContent(460);
 
   const emailPrefix = user?.email?.split('@')[0] ?? '';
@@ -66,7 +68,7 @@ export default function OnboardingScreen() {
     setUploadingAvatar(true);
     const { error: upErr } = await uploadAndSetAvatar(result.assets[0].uri);
     setUploadingAvatar(false);
-    if (upErr) Alert.alert('Could not upload', upErr);
+    if (upErr) toast(upErr, { tone: 'error' });
   }
 
   async function finish() {
@@ -155,9 +157,9 @@ export default function OnboardingScreen() {
 
           <Pressable style={styles.toggleRow} onPress={() => setIsStylist((s) => !s)}>
             <View style={styles.toggleText}>
-              <Txt variant="body">I'm a stylist</Txt>
+              <Txt variant="body">I&apos;m a stylist</Txt>
               <Txt variant="caption" color={Palette.textMuted}>
-                Get tagged in clients' cuts and submit cuts to their account.
+                Get tagged in clients&apos; cuts and submit cuts to their account.
               </Txt>
             </View>
             <View style={[styles.checkbox, isStylist && styles.checkboxOn]}>

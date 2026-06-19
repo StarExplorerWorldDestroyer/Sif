@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -21,6 +20,7 @@ import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { toISODate } from '@/lib/reminders';
+import { useFeedback } from '@/store/feedback';
 import { useHaircuts } from '@/store/haircuts';
 import type { Photo } from '@/types';
 
@@ -34,6 +34,7 @@ export default function AddHaircutScreen() {
     clientName?: string;
   }>();
   const { addHaircut, updateHaircut, createForClient, getById } = useHaircuts();
+  const { toast } = useFeedback();
   const centered = useCenteredContent(640);
 
   const editing = getById(id ?? '');
@@ -81,9 +82,9 @@ export default function AddHaircutScreen() {
       if (forClient && clientId) {
         await createForClient(clientId, input);
         router.back();
-        Alert.alert(
-          'Cut submitted',
+        toast(
           `Sent to ${clientName || 'your client'}. It’ll appear in their account once they accept it.`,
+          { tone: 'success' },
         );
         return;
       }
@@ -97,7 +98,7 @@ export default function AddHaircutScreen() {
       }
     } catch {
       setSaving(false);
-      Alert.alert('Could not save', 'Something went wrong saving your haircut. Please try again.');
+      toast('Something went wrong saving your haircut. Please try again.', { tone: 'error' });
     }
   }
 
