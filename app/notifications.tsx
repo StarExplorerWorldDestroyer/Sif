@@ -58,6 +58,8 @@ function message(n: AppNotification): string {
       return `${name} left you a review`;
     case 'review_reply':
       return `${name} replied to your review`;
+    case 'message':
+      return `${name} sent you a message`;
     default:
       return name;
   }
@@ -85,6 +87,8 @@ function href(n: AppNotification): string {
       return '/bookings';
     case 'review_reply':
       return n.actor?.username ? `/u/${n.actor.username}` : '/bookings';
+    case 'message':
+      return n.entityId ? `/messages/${n.entityId}` : '/messages';
     case 'connection_accepted':
     case 'follow':
       return n.actor?.username ? `/u/${n.actor.username}` : '/connections';
@@ -190,7 +194,7 @@ function Avatar({ uri, type }: { uri: string; type: AppNotification['type'] }) {
       ? 'heart.fill'
       : type === 'review_received' || type === 'review_reply'
         ? 'star.fill'
-        : type === 'post_comment' || type === 'comment_reply'
+        : type === 'post_comment' || type === 'comment_reply' || type === 'message'
           ? 'bubble.right'
           : type.startsWith('booking_')
             ? 'calendar'

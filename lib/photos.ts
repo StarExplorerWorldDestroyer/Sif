@@ -67,6 +67,28 @@ export async function uploadPhoto(
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
+/** Upload a photo attached to a direct message and return its public URL. */
+export async function uploadMessagePhoto(
+  userId: string,
+  conversationId: string,
+  localUri: string,
+): Promise<string> {
+  const ext = (localUri.split('.').pop()?.split('?')[0] || 'jpg').toLowerCase();
+  const fileId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const path = `${userId}/${conversationId}/${fileId}.${ext}`;
+  const { body, contentType } = await readImageBody(
+    localUri,
+    ext === 'png' ? 'image/png' : 'image/jpeg',
+  );
+
+  const { error } = await supabase.storage
+    .from('message-photos')
+    .upload(path, body, { contentType, upsert: true });
+  if (error) throw error;
+
+  return supabase.storage.from('message-photos').getPublicUrl(path).data.publicUrl;
+}
+
 /** Upload a profile avatar and return its public URL (cache-busted). */
 export async function uploadAvatar(userId: string, localUri: string): Promise<string> {
   const ext = (localUri.split('.').pop()?.split('?')[0] || 'jpg').toLowerCase();

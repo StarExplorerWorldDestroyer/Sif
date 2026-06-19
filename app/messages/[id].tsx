@@ -1,9 +1,12 @@
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -23,6 +26,7 @@ import {
   markConversationRead,
   sendMessage,
 } from '@/lib/messages';
+import { uploadMessagePhoto } from '@/lib/photos';
 import { fetchCardsByIds } from '@/lib/public';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
@@ -55,7 +59,9 @@ export default function ThreadScreen() {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [viewing, setViewing] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   const scrollToEnd = useCallback(() => {
@@ -124,6 +130,7 @@ export default function ThreadScreen() {
                     conversationId: m.conversation_id,
                     senderId: m.sender_id,
                     body: m.body ?? '',
+                    imageUrl: m.image_url ?? null,
                     createdAt: m.created_at,
                     readAt: m.read_at ?? null,
                   },
@@ -131,6 +138,23 @@ export default function ThreadScreen() {
           );
           if (m.sender_id !== user?.id) markRead();
           scrollToEnd();
+        },
+      )
+      .on(
+        // Read receipts: the other party marking my messages read updates
+        // read_at, so reflect "Seen" live.
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const m = payload.new as any;
+          setMessages((prev) =>
+            prev.map((x) => (x.id === m.id ? { ...x, readAt: m.read_at ?? null } : x)),
+          );
         },
       )
       .subscribe();
@@ -141,10 +165,24 @@ export default function ThreadScreen() {
 
   const send = useCallback(async () => {
     const text = draft.trim();
-    if (!text || sending) return;
+    const localImage = pendingImage;
+    if ((!text && !localImage) || sending || !user) return;
     setSending(true);
     setDraft('');
-    const msg = await sendMessage(conversationId, text);
+    setPendingImage(null);
+    let imageUrl: string | null = null;
+    if (localImage) {
+      try {
+        imageUrl = await uploadMessagePhoto(user.id, conversationId, localImage);
+      } catch {
+        setSending(false);
+        setDraft(text);
+        setPendingImage(localImage);
+        Alert.alert('Upload failed', 'Could not send the photo. Please try again.');
+        return;
+      }
+    }
+    const msg = await sendMessage(conversationId, text, imageUrl);
     setSending(false);
     if (msg) {
       setMessages((prev) => (prev.some((x) => x.id === msg.id) ? prev : [...prev, msg]));
@@ -152,10 +190,54 @@ export default function ThreadScreen() {
       scrollToEnd();
     } else {
       setDraft(text);
+      setPendingImage(localImage);
     }
-  }, [draft, sending, conversationId, refetchInbox, scrollToEnd]);
+  }, [draft, pendingImage, sending, user, conversationId, refetchInbox, scrollToEnd]);
+
+  const pickImage = useCallback(async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission needed', 'Please allow photo access to send a photo.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+    if (result.canceled) return;
+    setPendingImage(result.assets[0].uri);
+  }, []);
+
+  const takeImage = useCallback(async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission needed', 'Please allow camera access to take a photo.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (result.canceled) return;
+    setPendingImage(result.assets[0].uri);
+  }, []);
+
+  const choosePhoto = useCallback(() => {
+    if (Platform.OS === 'web') {
+      pickImage();
+      return;
+    }
+    Alert.alert('Send a photo', undefined, [
+      { text: 'Take Photo', onPress: takeImage },
+      { text: 'Choose from Library', onPress: pickImage },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [pickImage, takeImage]);
 
   const name = other?.displayName || (other?.username ? `@${other.username}` : 'Sif user');
+
+  // The most recent of my messages the other party has read → show "Seen".
+  let lastSeenMineId: string | null = null;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].senderId === user?.id && messages[i].readAt) {
+      lastSeenMineId = messages[i].id;
+      break;
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -212,10 +294,25 @@ export default function ThreadScreen() {
                       </Txt>
                     ) : null}
                     <View style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-                      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-                        <Txt variant="body" color={mine ? Palette.black : Palette.text}>
-                          {m.body}
-                        </Txt>
+                      <View
+                        style={[
+                          styles.bubble,
+                          mine ? styles.bubbleMine : styles.bubbleTheirs,
+                          m.imageUrl && !m.body ? styles.bubbleImageOnly : null,
+                        ]}>
+                        {m.imageUrl ? (
+                          <Pressable onPress={() => setViewing(m.imageUrl)}>
+                            <Image source={{ uri: m.imageUrl }} style={styles.messageImage} contentFit="cover" />
+                          </Pressable>
+                        ) : null}
+                        {m.body ? (
+                          <Txt
+                            variant="body"
+                            color={mine ? Palette.black : Palette.text}
+                            style={m.imageUrl ? styles.captionAfterImage : undefined}>
+                            {m.body}
+                          </Txt>
+                        ) : null}
                         <Txt
                           variant="caption"
                           color={mine ? 'rgba(0,0,0,0.55)' : Palette.textDim}
@@ -224,6 +321,11 @@ export default function ThreadScreen() {
                         </Txt>
                       </View>
                     </View>
+                    {m.id === lastSeenMineId ? (
+                      <Txt variant="caption" color={Palette.textDim} style={styles.seen}>
+                        Seen
+                      </Txt>
+                    ) : null}
                   </View>
                 );
               })
@@ -231,24 +333,58 @@ export default function ThreadScreen() {
           </ScrollView>
         )}
 
-        <View style={[styles.composer, centered]}>
-          <TextInput
-            value={draft}
-            onChangeText={setDraft}
-            placeholder="Message…"
-            placeholderTextColor={Palette.textDim}
-            style={styles.input}
-            multiline
-            onSubmitEditing={send}
-          />
-          <Pressable
-            style={[styles.send, (!draft.trim() || sending) && styles.sendDisabled]}
-            onPress={send}
-            disabled={!draft.trim() || sending}>
-            <IconSymbol name="paperplane.fill" size={18} color={Palette.black} />
-          </Pressable>
+        <View style={[styles.composerWrap, centered]}>
+          {pendingImage ? (
+            <View style={styles.previewRow}>
+              <Image source={{ uri: pendingImage }} style={styles.previewImage} contentFit="cover" />
+              <Pressable
+                style={styles.previewRemove}
+                onPress={() => setPendingImage(null)}
+                hitSlop={8}>
+                <IconSymbol name="xmark" size={14} color={Palette.text} />
+              </Pressable>
+            </View>
+          ) : null}
+          <View style={styles.composer}>
+            <Pressable style={styles.attach} onPress={choosePhoto} hitSlop={8} disabled={sending}>
+              <IconSymbol name="camera.fill" size={22} color={Palette.textMuted} />
+            </Pressable>
+            <TextInput
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="Message…"
+              placeholderTextColor={Palette.textDim}
+              style={styles.input}
+              multiline
+              onSubmitEditing={send}
+            />
+            <Pressable
+              style={[
+                styles.send,
+                ((!draft.trim() && !pendingImage) || sending) && styles.sendDisabled,
+              ]}
+              onPress={send}
+              disabled={(!draft.trim() && !pendingImage) || sending}>
+              {sending ? (
+                <ActivityIndicator color={Palette.black} size="small" />
+              ) : (
+                <IconSymbol name="paperplane.fill" size={18} color={Palette.black} />
+              )}
+            </Pressable>
+          </View>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal visible={!!viewing} transparent animationType="fade" onRequestClose={() => setViewing(null)}>
+        <Pressable style={styles.lightbox} onPress={() => setViewing(null)}>
+          {viewing ? (
+            <Image source={{ uri: viewing }} style={styles.lightboxImage} contentFit="contain" />
+          ) : null}
+          <Pressable style={styles.lightboxClose} onPress={() => setViewing(null)} hitSlop={8}>
+            <IconSymbol name="xmark" size={26} color={Palette.text} />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -276,7 +412,34 @@ const styles = StyleSheet.create({
   bubble: { maxWidth: '80%', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.lg },
   bubbleMine: { backgroundColor: Palette.accent, borderBottomRightRadius: Radius.sm },
   bubbleTheirs: { backgroundColor: Palette.surfaceAlt, borderBottomLeftRadius: Radius.sm },
+  bubbleImageOnly: { padding: 4 },
+  messageImage: { width: 220, height: 220, borderRadius: Radius.md, backgroundColor: Palette.surface },
+  captionAfterImage: { marginTop: Spacing.sm },
   time: { marginTop: 2, alignSelf: 'flex-end' },
+  seen: { alignSelf: 'flex-end', marginTop: 2, marginRight: 2 },
+  composerWrap: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Palette.border,
+  },
+  previewRow: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+  },
+  previewImage: { width: 72, height: 72, borderRadius: Radius.md, backgroundColor: Palette.surface },
+  previewRemove: {
+    position: 'absolute',
+    top: Spacing.sm - 6,
+    left: Spacing.lg + 60,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Palette.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+  },
+  attach: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -284,9 +447,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Palette.border,
   },
+  lightbox: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' },
+  lightboxImage: { width: '100%', height: '80%' },
+  lightboxClose: { position: 'absolute', top: Spacing.xl, right: Spacing.lg },
   input: {
     flex: 1,
     color: Palette.text,

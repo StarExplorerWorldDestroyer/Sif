@@ -17,6 +17,7 @@ function rowToMessage(row: any): DirectMessage {
     conversationId: row.conversation_id,
     senderId: row.sender_id,
     body: row.body ?? '',
+    imageUrl: row.image_url ?? null,
     createdAt: row.created_at,
     readAt: row.read_at ?? null,
   };
@@ -72,16 +73,17 @@ export async function fetchMessages(conversationId: string): Promise<DirectMessa
   return (data ?? []).map(rowToMessage);
 }
 
-/** Send a message; returns the created message or null on failure. */
+/** Send a message (text and/or photo); returns it or null on failure. */
 export async function sendMessage(
   conversationId: string,
   body: string,
+  imageUrl?: string | null,
 ): Promise<DirectMessage | null> {
   const text = body.trim();
-  if (!text) return null;
+  if (!text && !imageUrl) return null;
   const { data, error } = await supabase
     .from('messages')
-    .insert({ conversation_id: conversationId, body: text })
+    .insert({ conversation_id: conversationId, body: text, image_url: imageUrl ?? null })
     .select()
     .single();
   if (error || !data) return null;
@@ -99,4 +101,13 @@ export async function markConversationRead(conversationId: string): Promise<void
     .eq('conversation_id', conversationId)
     .neq('sender_id', uid)
     .is('read_at', null);
+  // Clear the bell notification for this conversation so it stays in sync
+  // with the inbox unread badge.
+  await supabase
+    .from('notifications')
+    .update({ read: true })
+    .eq('user_id', uid)
+    .eq('type', 'message')
+    .eq('entity_id', conversationId)
+    .eq('read', false);
 }

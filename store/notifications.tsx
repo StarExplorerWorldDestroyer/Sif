@@ -81,8 +81,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const channel = supabase
       .channel(`notifications:${user.id}`)
       .on(
+        // Listen to UPDATEs too: message notifications are deduped per
+        // conversation, so a new message bumps an existing row rather than
+        // inserting a fresh one.
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
         () => refetch(),
       )
       .subscribe();

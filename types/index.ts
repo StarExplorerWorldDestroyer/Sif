@@ -120,7 +120,8 @@ export type NotificationType =
   | 'booking_reminder'
   | 'booking_rescheduled'
   | 'review_received'
-  | 'review_reply';
+  | 'review_reply'
+  | 'message';
 
 /** An in-app notification, with the acting user resolved for display. */
 export type AppNotification = {
@@ -247,6 +248,8 @@ export type DirectMessage = {
   conversationId: string;
   senderId: string;
   body: string;
+  /** Optional photo attachment (public URL), null for text-only messages. */
+  imageUrl: string | null;
   createdAt: string;
   readAt: string | null;
 };
