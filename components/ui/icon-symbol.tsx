@@ -56,6 +56,7 @@ const MAPPING = {
   'calendar': 'event',
   'minus': 'remove',
   'square.and.pencil': 'edit-note',
+  'book': 'auto-stories',
 } as IconMapping;
 
 /**

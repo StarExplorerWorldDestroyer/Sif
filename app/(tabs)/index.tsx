@@ -36,6 +36,12 @@ export default function CutsScreen() {
             <Pressable
               style={styles.iconButton}
               hitSlop={8}
+              onPress={() => router.push('/journal')}>
+              <IconSymbol name="book" size={20} color={Palette.text} />
+            </Pressable>
+            <Pressable
+              style={styles.iconButton}
+              hitSlop={8}
               onPress={() => router.push('/insights')}>
               <IconSymbol name="chart.bar" size={20} color={Palette.text} />
             </Pressable>
