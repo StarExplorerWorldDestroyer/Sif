@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
-import { FontSize, Palette, Radius, Spacing } from '@/constants/theme';
+import { FontSize, Glow, Palette, Radius, Spacing } from '@/constants/theme';
 
 /**
  * A labeled input for a list of tags (e.g. techniques, tools).
@@ -21,6 +21,7 @@ export function TagInput({
   placeholder?: string;
 }) {
   const [draft, setDraft] = useState('');
+  const [focused, setFocused] = useState(false);
 
   function add() {
     const value = draft.trim();
@@ -61,7 +62,9 @@ export function TagInput({
         returnKeyType="done"
         placeholder={placeholder}
         placeholderTextColor={Palette.textDim}
-        style={styles.input}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={[styles.input, focused && styles.inputFocused]}
       />
     </View>
   );
@@ -89,5 +92,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     color: Palette.text,
     fontSize: FontSize.md,
+  },
+  inputFocused: {
+    borderWidth: 1,
+    borderColor: Palette.accent,
+    ...Glow.sm,
   },
 });

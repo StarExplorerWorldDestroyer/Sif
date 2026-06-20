@@ -18,7 +18,7 @@ import { UpdateTimeline } from '@/components/cuts/update-timeline';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Pill } from '@/components/ui/pill';
 import { Txt } from '@/components/ui/text';
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/format';
 import { useMoney } from '@/hooks/use-money';
 import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
@@ -193,8 +193,8 @@ export default function HaircutDetailScreen() {
               </View>
 
               <Pressable style={styles.bookButton}>
-                <Txt variant="label" color={Palette.black} style={styles.bookText}>
-                  Book
+                <Txt variant="label" color={Palette.accent} glow style={styles.bookText}>
+                  BOOK
                 </Txt>
               </Pressable>
             </View>
@@ -548,12 +548,15 @@ const styles = StyleSheet.create({
   },
   statsRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   bookButton: {
-    backgroundColor: Palette.accent,
+    backgroundColor: 'rgba(255, 87, 51, 0.06)',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
-    borderRadius: Radius.pill,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: Palette.accent,
+    ...Glow.sm,
   },
-  bookText: { fontWeight: '600' },
+  bookText: { fontWeight: '700', letterSpacing: 3 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.md },
   bio: { marginTop: Spacing.md, lineHeight: 20 },
   lengthGrid: { flexDirection: 'row', gap: Spacing.sm },

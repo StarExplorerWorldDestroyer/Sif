@@ -29,7 +29,7 @@ export function Screen({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: Palette.black,
+    backgroundColor: Palette.bg,
   },
   // Always fill the safe area so child scroll views get a bounded height to
   // scroll within (without this, padded={false} screens collapse to content

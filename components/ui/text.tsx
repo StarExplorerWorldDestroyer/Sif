@@ -1,6 +1,6 @@
 import { Text as RNText, StyleSheet, type TextProps } from 'react-native';
 
-import { FontSize, Palette } from '@/constants/theme';
+import { FontSize, Fonts, Palette, TextGlow } from '@/constants/theme';
 
 type Variant = 'display' | 'title' | 'heading' | 'body' | 'label' | 'caption';
 
@@ -13,15 +13,36 @@ const variantStyles = StyleSheet.create({
   caption: { fontSize: FontSize.xs, fontWeight: '400', color: Palette.textDim },
 });
 
+const extras = StyleSheet.create({
+  mono: { fontFamily: Fonts.mono },
+  glow: TextGlow.accent,
+});
+
 /**
  * Themed text. Pick a `variant` for consistent sizing/weight, and optionally
  * override the `color` (e.g. the orange accent for prices/tips).
+ *
+ * - `mono` switches to the monospace "data terminal" face (brand, numbers).
+ * - `glow` adds the orange holographic text glow from the landing page.
  */
 export function Txt({
   variant = 'body',
   color,
+  mono,
+  glow,
   style,
   ...rest
-}: TextProps & { variant?: Variant; color?: string }) {
-  return <RNText style={[variantStyles[variant], color ? { color } : null, style]} {...rest} />;
+}: TextProps & { variant?: Variant; color?: string; mono?: boolean; glow?: boolean }) {
+  return (
+    <RNText
+      style={[
+        variantStyles[variant],
+        mono && extras.mono,
+        glow && extras.glow,
+        color ? { color } : null,
+        style,
+      ]}
+      {...rest}
+    />
+  );
 }

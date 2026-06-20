@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 
 type IconName = Parameters<typeof IconSymbol>[0]['name'];
 
@@ -25,7 +25,7 @@ export function Sidebar({ state, navigation }: BottomTabBarProps) {
         style={styles.brand}
         hitSlop={8}
         onPress={() => navigation.navigate('index')}>
-        <Txt variant="title" color={Palette.accent}>
+        <Txt variant="title" color={Palette.accent} mono glow>
           Sif
         </Txt>
       </Pressable>
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
   sidebar: {
     width: 232,
     height: '100%',
-    backgroundColor: Palette.black,
+    backgroundColor: Palette.bg,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: Palette.border,
     paddingHorizontal: Spacing.md,
@@ -102,6 +102,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.accent,
     borderRadius: Radius.pill,
     paddingVertical: Spacing.md,
+    ...Glow.md,
   },
   addLabel: { fontWeight: '600' },
 });

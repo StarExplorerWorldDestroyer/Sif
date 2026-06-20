@@ -21,7 +21,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: Palette.accent,
         tabBarInactiveTintColor: Palette.textMuted,
         tabBarStyle: {
-          backgroundColor: Palette.black,
+          backgroundColor: Palette.bg,
           borderTopColor: Palette.border,
         },
         // Compact, finance-app style labels.

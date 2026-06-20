@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 
 type IconName = ComponentProps<typeof IconSymbol>['name'];
 
@@ -80,6 +80,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     alignItems: 'center',
+    ...Glow.md,
   },
   primaryText: { fontWeight: '600' },
   secondary: { marginTop: Spacing.sm, paddingVertical: Spacing.xs },

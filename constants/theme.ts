@@ -14,6 +14,10 @@ import { Platform } from 'react-native';
 export const Palette = {
   // Backgrounds
   black: '#000000',
+  // Warm near-black app background — echoes the landing page's holographic
+  // backdrop so the whole product feels like one universe (vs. pure black).
+  bg: '#0A0503',
+  bgDeep: '#050201', // outer web backdrop, behind the app frame
   surface: '#1F1F1F', // cards
   surfaceAlt: '#2D2D2D', // raised elements, pills
   border: '#2D2D2D',
@@ -77,6 +81,37 @@ export const Colors = {
   light: darkColors,
   dark: darkColors,
 };
+
+/**
+ * Orange "hologram" glow for views (buttons, FABs, badges). The native shadow
+ * props are converted to a CSS box-shadow on web by React Native Web, so this
+ * one object works on every platform.
+ */
+export const Glow = {
+  sm: {
+    shadowColor: Palette.accent,
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  md: {
+    shadowColor: Palette.accent,
+    shadowOpacity: 0.6,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
+  },
+} as const;
+
+/** Orange text glow, matching the glowing wordmark on the landing page. */
+export const TextGlow = {
+  accent: {
+    textShadowColor: 'rgba(255, 87, 51, 0.7)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+} as const;
 
 export const Fonts = Platform.select({
   ios: {

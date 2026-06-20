@@ -12,7 +12,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Screen } from '@/components/ui/screen';
 import { TabHeader } from '@/components/ui/tab-header';
 import { Txt } from '@/components/ui/text';
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 import { useHaircuts } from '@/store/haircuts';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useRefresh } from '@/hooks/use-refresh';
@@ -150,6 +150,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.accent,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Glow.md,
   },
   pendingBanner: {
     flexDirection: 'row',

@@ -25,8 +25,8 @@ const AppTheme = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
-    background: Palette.black,
-    card: Palette.black,
+    background: Palette.bg,
+    card: Palette.bg,
     primary: Palette.accent,
     text: Palette.text,
     border: Palette.border,
@@ -80,7 +80,7 @@ function useAuthRedirect() {
 function RootNavigator() {
   useAuthRedirect();
   return (
-    <Stack screenOptions={{ contentStyle: { backgroundColor: Palette.black } }}>
+    <Stack screenOptions={{ contentStyle: { backgroundColor: Palette.bg } }}>
       <Stack.Screen name="landing" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />

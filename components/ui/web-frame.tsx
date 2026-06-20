@@ -26,13 +26,13 @@ export function WebFrame({ children }: { children: ReactNode }) {
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: Palette.bgDeep,
     alignItems: 'center',
   },
   frame: {
     flex: 1,
     width: '100%',
-    backgroundColor: Palette.black,
+    backgroundColor: Palette.bg,
     borderColor: Palette.border,
     overflow: 'hidden',
   },

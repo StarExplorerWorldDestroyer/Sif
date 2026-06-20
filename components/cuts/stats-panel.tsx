@@ -22,7 +22,7 @@ function StatTile({
     <View style={styles.tile}>
       <Txt variant="caption">{label}</Txt>
       <View style={styles.valueRow}>
-        <Txt variant="heading" color={accent ? Palette.accent : Palette.text}>
+        <Txt variant="heading" mono color={accent ? Palette.accent : Palette.text}>
           {value}
         </Txt>
         {trailing}

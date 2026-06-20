@@ -35,11 +35,11 @@ export function TabHeader({
         {titleHref ? (
           <Link href={titleHref as never} asChild>
             <Pressable hitSlop={6} accessibilityRole="link" accessibilityLabel={`${title}, go to Cuts`}>
-              <Txt variant="title">{title}</Txt>
+              <Txt variant="title" mono glow>{title}</Txt>
             </Pressable>
           </Link>
         ) : (
-          <Txt variant="title">{title}</Txt>
+          <Txt variant="title" mono glow>{title}</Txt>
         )}
 
         <View style={styles.actions}>

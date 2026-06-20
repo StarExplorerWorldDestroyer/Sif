@@ -10,7 +10,7 @@ import { StylistHours } from '@/components/social/stylist-hours';
 import { StylistReviews } from '@/components/social/stylist-reviews';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 import { getOrCreateConversation } from '@/lib/messages';
 import { fetchFollowCounts, fetchPostsForUser, fetchProfileView } from '@/lib/public';
 import { useCenteredContent } from '@/hooks/use-responsive';
@@ -271,6 +271,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.pill,
+    ...Glow.md,
   },
   messageButton: {
     flexDirection: 'row',

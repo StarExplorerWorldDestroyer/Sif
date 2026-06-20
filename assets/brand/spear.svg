@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="blade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd9a0"/>
+      <stop offset="0.45" stop-color="#FF5733"/>
+      <stop offset="1" stop-color="#b4220c"/>
+    </linearGradient>
+    <linearGradient id="shaft" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff9d63"/>
+      <stop offset="1" stop-color="#d8401e"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="#0a0402"/>
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="14.25" fill="none" stroke="#FF5733" stroke-opacity="0.35" stroke-width="1.5"/>
+
+  <g filter="url(#glow)">
+    <!-- shaft -->
+    <rect x="30.4" y="27" width="3.2" height="29" rx="1.6" fill="url(#shaft)"/>
+    <!-- pommel -->
+    <circle cx="32" cy="56.5" r="2.6" fill="#FF5733"/>
+    <!-- socket / collar -->
+    <rect x="28.5" y="25" width="7" height="4" rx="1.2" fill="#ffb27a"/>
+    <!-- leaf-shaped spearhead -->
+    <path d="M32 5 L41.5 22 L32 28 L22.5 22 Z" fill="url(#blade)"/>
+    <!-- midrib highlight -->
+    <path d="M32 8 L32 26" stroke="#ffe7c8" stroke-width="1.1" stroke-linecap="round" stroke-opacity="0.9"/>
+  </g>
+</svg>

@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/store/auth';
 import { useSocial } from '@/store/social';
 import type { ConnectionStatus } from '@/types';
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     minWidth: 110,
   },
-  btnFilled: { backgroundColor: Palette.accent },
+  btnFilled: { backgroundColor: Palette.accent, ...Glow.sm },
   btnOutline: {
     backgroundColor: 'transparent',
     borderWidth: StyleSheet.hairlineWidth,

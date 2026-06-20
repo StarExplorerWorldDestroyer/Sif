@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Field } from '@/components/ui/field';
 import { Txt } from '@/components/ui/text';
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useAuth } from '@/store/auth';
 
@@ -72,7 +72,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={[styles.content, centered]}>
           <View style={styles.brand}>
-            <Txt variant="display" color={Palette.accent}>
+            <Txt variant="display" color={Palette.accent} mono glow>
               Sif
             </Txt>
             <Txt variant="label">
@@ -150,7 +150,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Palette.black },
+  safe: { flex: 1, backgroundColor: Palette.bg },
   flex: { flex: 1 },
   content: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.xl },
   brand: { alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.xxl },
@@ -161,6 +161,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     alignItems: 'center',
     marginTop: Spacing.sm,
+    ...Glow.md,
   },
   buttonDisabled: { opacity: 0.4 },
   buttonText: { fontWeight: '600' },
