@@ -48,16 +48,19 @@ function useAuthRedirect() {
       return;
     }
     const onLoginScreen = segments[0] === 'login';
+    const onLanding = segments[0] === 'landing';
     const onReset = segments[0] === 'reset';
     const onOnboarding = segments[0] === 'onboarding';
     // Public, shareable routes that don't require being signed in.
     const onPublicRoute = segments[0] === 'u' || segments[0] === 'p' || segments[0] === 'likes';
 
-    if (!user && !onLoginScreen && !onPublicRoute) {
-      router.replace('/login');
+    // Logged-out visitors land on the Golden Sif splash; the page's Enter
+    // button takes them to /login. Login stays directly reachable too.
+    if (!user && !onLoginScreen && !onLanding && !onPublicRoute) {
+      router.replace('/landing');
       return;
     }
-    if (user && onLoginScreen) {
+    if (user && (onLoginScreen || onLanding)) {
       router.replace('/');
       return;
     }
@@ -78,6 +81,7 @@ function RootNavigator() {
   useAuthRedirect();
   return (
     <Stack screenOptions={{ contentStyle: { backgroundColor: Palette.black } }}>
+      <Stack.Screen name="landing" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

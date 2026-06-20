@@ -42,7 +42,8 @@
           "photosPermission": "Allow Sif to access your photos so you can add haircut pictures.",
           "cameraPermission": "Allow Sif to use your camera so you can take haircut pictures."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
