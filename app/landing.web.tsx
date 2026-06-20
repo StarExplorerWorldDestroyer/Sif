@@ -114,7 +114,7 @@ export default function Landing() {
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
-        const targetH = 220;
+        const targetH = 178;
         const s = targetH / (size.y || 1);
         model.scale.setScalar(s);
         model.position.set(-center.x * s, -center.y * s, -center.z * s);
@@ -272,7 +272,7 @@ const CSS = `
 /* ---- orbiting GOLDEN SIF (edge-on horizontal ring around vertical axis) ---- */
 .gs-haloWrap {
   position: absolute;
-  top: 50%;
+  top: 10%;
   left: 50%;
   width: 0;
   height: 0;
@@ -285,7 +285,7 @@ const CSS = `
   position: absolute;
   transform-style: preserve-3d;
   animation: gs-orbit 16s linear infinite;
-  --halo-r: 280px;
+  --halo-r: 185px;
   will-change: transform;
 }
 .gs-halo-ch {
@@ -307,7 +307,7 @@ const CSS = `
 /* ---- tagline + enter ---- */
 .gs-tagline {
   position: absolute;
-  bottom: 17%;
+  bottom: 11%;
   letter-spacing: 6px;
   font-size: 11px;
   color: rgba(255,150,110,0.7);
@@ -316,7 +316,7 @@ const CSS = `
 }
 .gs-enter {
   position: absolute;
-  bottom: 8%;
+  bottom: 4%;
   appearance: none;
   cursor: pointer;
   background: rgba(255,87,51,0.06);
@@ -447,7 +447,7 @@ const CSS = `
 
 @media (max-width: 560px) {
   .gs-halo-ch { font-size: 19px; }
-  .gs-halo { --halo-r: 190px; }
+  .gs-halo { --halo-r: 140px; }
   .gs-enter-txt { letter-spacing: 7px; font-size: 12px; }
 }
 `;
