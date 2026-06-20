@@ -1,6 +1,8 @@
+import { Asset } from 'expo-asset';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const ORBIT_TEXT = 'GOLDEN  SIF   \u2726   ';
 
@@ -50,15 +52,15 @@ export default function Landing() {
     return chars.map((ch, i) => ({ ch, angle: i * step, key: `${ch}-${i}` }));
   }, []);
 
-  // ---- Three.js low-poly holographic Sif (fully 360-rotatable) ----
+  // ---- Three.js holographic Sif loaded from a GLB model (fully 360-rotatable) ----
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
     let frame = 0;
+    let disposed = false;
 
     const scene = new THREE.Scene();
-    const fov = 45;
-    const camera = new THREE.PerspectiveCamera(fov, 1, 0.1, 5000);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setClearColor(0x000000, 0);
@@ -86,71 +88,41 @@ export default function Landing() {
     };
 
     const sif = new THREE.Group();
-    const add = (
-      geo: THREE.BufferGeometry,
-      mat: THREE.ShaderMaterial,
-      pos: [number, number, number],
-      rot: [number, number, number] = [0, 0, 0],
-      scale: [number, number, number] = [1, 1, 1],
-    ) => {
-      geometries.push(geo);
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(...pos);
-      mesh.rotation.set(...rot);
-      mesh.scale.set(...scale);
-      sif.add(mesh);
-      return mesh;
-    };
-
-    const bodyMat = makeMat(0xff6a3d);
-    const skinMat = makeMat(0xffb27a);
-    const hairMat = makeMat(0xff8a4d);
-    const metalMat = makeMat(0xffd9a0);
-
-    // Legs + boots
-    add(new THREE.CylinderGeometry(6, 5, 52, 10), bodyMat, [-11, -62, 0]);
-    add(new THREE.CylinderGeometry(6, 5, 52, 10), bodyMat, [11, -62, 0]);
-    add(new THREE.BoxGeometry(13, 12, 18), bodyMat, [-11, -90, 3]);
-    add(new THREE.BoxGeometry(13, 12, 18), bodyMat, [11, -90, 3]);
-    // Tunic / skirt (open cone) + torso
-    add(new THREE.CylinderGeometry(16, 30, 42, 16, 1, true), bodyMat, [0, -22, 0]);
-    add(new THREE.CylinderGeometry(14, 18, 46, 14), bodyMat, [0, 8, 0]);
-    // Shoulders / fur mantle
-    add(new THREE.SphereGeometry(21, 16, 12), bodyMat, [0, 28, 0], [0, 0, 0], [1, 0.6, 0.9]);
-    // Arms
-    add(new THREE.CylinderGeometry(4.5, 4, 46, 10), bodyMat, [-23, 6, 2], [0, 0, 0.14]);
-    add(new THREE.CylinderGeometry(4.5, 4, 46, 10), bodyMat, [23, 6, 2], [0, 0, -0.14]);
-    // Neck + head
-    add(new THREE.CylinderGeometry(5, 5, 8, 10), skinMat, [0, 40, 0]);
-    add(new THREE.SphereGeometry(12, 16, 12), skinMat, [0, 51, 0]);
-    // Winged helm: dome + two swept wings
-    add(
-      new THREE.SphereGeometry(13, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-      metalMat,
-      [0, 53, 0],
-    );
-    add(new THREE.ConeGeometry(5, 20, 6), metalMat, [-14, 61, 0], [0, 0, Math.PI / 4], [1, 1, 0.4]);
-    add(new THREE.ConeGeometry(5, 20, 6), metalMat, [14, 61, 0], [0, 0, -Math.PI / 4], [1, 1, 0.4]);
-    // Long flowing hair (back + sides)
-    add(new THREE.CylinderGeometry(10, 3, 78, 8), hairMat, [0, 14, -11]);
-    add(new THREE.CylinderGeometry(7, 2, 72, 8), hairMat, [-13, 16, -7], [0, 0, 0.06]);
-    add(new THREE.CylinderGeometry(7, 2, 72, 8), hairMat, [13, 16, -7], [0, 0, -0.06]);
-    // Spear (her right hand) + tip
-    add(new THREE.CylinderGeometry(1.4, 1.4, 156, 8), metalMat, [-27, 2, 6]);
-    add(new THREE.ConeGeometry(3, 11, 8), metalMat, [-27, 84, 6]);
-    // Round shield (her left) facing forward, with center boss
-    add(new THREE.CylinderGeometry(21, 21, 4, 28), metalMat, [28, -6, 11], [Math.PI / 2, 0, 0]);
-    add(
-      new THREE.SphereGeometry(5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-      skinMat,
-      [28, -6, 13.5],
-      [-Math.PI / 2, 0, 0],
-    );
-
     scene.add(sif);
 
-    camera.position.set(0, 6, 300);
-    camera.lookAt(0, 4, 0);
+    camera.position.set(0, 0, 320);
+    camera.lookAt(0, 0, 0);
+
+    // Load the supplied GLB and dress every mesh in the hologram shader.
+    const loader = new GLTFLoader();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const modelUri = Asset.fromModule(require('../assets/models/sif.glb')).uri;
+    loader.load(
+      modelUri,
+      (gltf) => {
+        if (disposed) return;
+        const model = gltf.scene;
+        const holo = makeMat(0xff6a3d);
+        model.traverse((obj) => {
+          const mesh = obj as THREE.Mesh;
+          if (mesh.isMesh) {
+            mesh.material = holo;
+            if (mesh.geometry) geometries.push(mesh.geometry);
+          }
+        });
+        // Center the model at the origin and scale it to a consistent height.
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const targetH = 220;
+        const s = targetH / (size.y || 1);
+        model.scale.setScalar(s);
+        model.position.set(-center.x * s, -center.y * s, -center.z * s);
+        sif.add(model);
+      },
+      undefined,
+      (err) => console.error('Failed to load Sif GLB', err),
+    );
 
     const resize = () => {
       const w = mount.clientWidth || 1;
@@ -175,6 +147,7 @@ export default function Landing() {
     animate();
 
     return () => {
+      disposed = true;
       cancelAnimationFrame(frame);
       ro.disconnect();
       geometries.forEach((g) => g.dispose());
