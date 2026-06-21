@@ -10,7 +10,7 @@
 // Secrets: supabase secrets set STRIPE_SECRET_KEY=sk_...
 // (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.)
 
-import { corsHeaders, getAdmin, getStripe, getUserId, json } from '../_shared/util.ts';
+import { corsHeaders, getAdmin, getStripe, getUserId, json, safeRedirect } from '../_shared/util.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
       // empty body is fine
     }
     const action = body.action ?? 'onboard';
-    const appUrl = body.returnUrl || Deno.env.get('APP_URL') || 'https://goldensif.com';
+    const appUrl = safeRedirect(body.returnUrl, Deno.env.get('APP_URL') || 'https://goldensif.com');
 
     // Load or create the connected account.
     const { data: existing } = await admin
@@ -44,9 +44,13 @@ Deno.serve(async (req) => {
       if (action === 'status') return json({ charges_enabled: false, details_submitted: false });
       const { data: profile } = await admin
         .from('profiles')
-        .select('username, display_name')
+        .select('username, display_name, is_stylist')
         .eq('id', uid)
         .maybeSingle();
+      // Only stylist accounts can onboard for payouts.
+      if (!profile?.is_stylist) {
+        return json({ error: 'Only stylist accounts can set up payouts.' }, 403);
+      }
       const { data: authUser } = await admin.auth.admin.getUserById(uid);
 
       const account = await stripe.accounts.create({

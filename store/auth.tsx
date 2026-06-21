@@ -1,7 +1,26 @@
 import type { Session, User } from '@supabase/supabase-js';
+import * as Linking from 'expo-linking';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 
 import { authRedirectTo, supabase } from '@/lib/supabase';
+
+/** Parse auth params from either the query string or the URL fragment (#...). */
+function parseAuthParams(url: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const grab = (s: string) => {
+    for (const part of s.split('&')) {
+      if (!part) continue;
+      const [k, v] = part.split('=');
+      if (k) out[decodeURIComponent(k)] = decodeURIComponent(v ?? '');
+    }
+  };
+  const hashIdx = url.indexOf('#');
+  const qIdx = url.indexOf('?');
+  if (qIdx >= 0) grab(url.slice(qIdx + 1, hashIdx >= 0 ? hashIdx : undefined));
+  if (hashIdx >= 0) grab(url.slice(hashIdx + 1));
+  return out;
+}
 
 type AuthContextValue = {
   session: Session | null;
@@ -39,6 +58,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => sub.subscription.unsubscribe();
+  }, []);
+
+  // Native deep links (e.g. the password-reset email opens `sif://reset#...`).
+  // Web handles this via detectSessionInUrl; on native we parse the tokens and
+  // establish the session ourselves, flagging recovery so the app routes to the
+  // reset screen. Guarded to native so it never affects the web flow.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const handleUrl = async (url: string | null) => {
+      if (!url) return;
+      const p = parseAuthParams(url);
+      try {
+        if (p.access_token && p.refresh_token) {
+          await supabase.auth.setSession({
+            access_token: p.access_token,
+            refresh_token: p.refresh_token,
+          });
+          if (p.type === 'recovery' || url.includes('reset')) setRecovering(true);
+        } else if (p.code) {
+          await supabase.auth.exchangeCodeForSession(p.code);
+          if (p.type === 'recovery' || url.includes('reset')) setRecovering(true);
+        }
+      } catch {
+        // Ignore malformed/expired links; the user can request a new one.
+      }
+    };
+
+    Linking.getInitialURL().then(handleUrl);
+    const subscription = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    return () => subscription.remove();
   }, []);
 
   async function signIn(email: string, password: string) {

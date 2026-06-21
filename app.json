@@ -43,7 +43,8 @@
           "cameraPermission": "Allow Sif to use your camera so you can take haircut pictures."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
