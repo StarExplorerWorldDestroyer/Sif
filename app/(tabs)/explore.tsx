@@ -1,7 +1,7 @@
 import { AppImage as Image } from '@/components/ui/app-image';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -20,6 +20,7 @@ import type { PublicPost } from '@/types';
 export default function ExploreScreen() {
   const router = useRouter();
   const isDesktop = useIsDesktop();
+  const numColumns = isDesktop ? 3 : 1;
   const centered = useCenteredContent();
   const [feed, setFeed] = useState<PublicPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,130 +62,164 @@ export default function ExploreScreen() {
       </View>
 
       {searchActive ? (
-        <ScrollView
+        <FlatList
+          data={results}
+          keyExtractor={(u) => u.id}
           contentContainerStyle={[styles.content, centered]}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
-          {searching ? (
-            <View style={styles.center}>
-              <ActivityIndicator color={Palette.accent} />
-            </View>
-          ) : results.length === 0 ? (
-            <Txt variant="label" style={styles.emptyText}>
-              No people found for “{query.trim()}”.
-            </Txt>
-          ) : (
-            results.map((u) => (
-              <UserRowLink key={u.id} username={u.username}>
-                <UserResultRow
-                  user={u}
-                  trailing={<IconSymbol name="chevron.right" size={16} color={Palette.textDim} />}
-                />
-              </UserRowLink>
-            ))
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item: u }) => (
+            <UserRowLink username={u.username}>
+              <UserResultRow
+                user={u}
+                trailing={<IconSymbol name="chevron.right" size={16} color={Palette.textDim} />}
+              />
+            </UserRowLink>
           )}
-        </ScrollView>
-      ) : (
-      <ScrollView
-        contentContainerStyle={[styles.content, centered]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              load();
-            }}
-            tintColor={Palette.accent}
-          />
-        }>
-        {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator color={Palette.accent} />
-          </View>
-        ) : feed.length === 0 ? (
-          <EmptyState
-            icon="safari"
-            title="Nothing here yet"
-            subtitle="Public posts from the community show up here. Make your profile public and share a cut to be the first."
-            primaryLabel="Share a cut"
-            onPrimary={() => router.push('/add')}
-          />
-        ) : (
-          <View style={styles.grid}>
-            {feed.map((post) => (
-              <View
-                key={post.id}
-                style={[styles.cell, { width: isDesktop ? '33.333%' : '100%' }]}>
-                <View style={styles.card}>
-                  <Pressable onPress={() => router.push(`/p/${post.id}`)}>
-                    <View style={styles.cardHeader}>
-                      {post.author.avatarUrl ? (
-                        <Image source={{ uri: post.author.avatarUrl }} style={styles.avatar} contentFit="cover" />
-                      ) : (
-                        <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                          <IconSymbol name="person.fill" size={14} color={Palette.textMuted} />
-                        </View>
-                      )}
-                      <Txt variant="label" color={Palette.text}>
-                        {post.author.username || post.author.displayName || 'Sif user'}
-                      </Txt>
-                    </View>
-                    <Image source={{ uri: post.photoUrl }} style={styles.photo} contentFit="cover" />
-                    {post.caption ? (
-                      <Txt variant="label" numberOfLines={2} style={styles.caption}>
-                        {post.caption}
-                      </Txt>
-                    ) : null}
-                    {post.stylist ? (
-                      <View style={styles.stylistCredit}>
-                        <IconSymbol name="scissors" size={12} color={Palette.textMuted} />
-                        <Txt variant="caption" color={Palette.textMuted} numberOfLines={1}>
-                          {post.stylist.displayName || `@${post.stylist.username}`}
-                        </Txt>
-                      </View>
-                    ) : null}
-                  </Pressable>
-                  <View style={styles.engageRow}>
-                    <Pressable
-                      style={styles.engageBtn}
-                      onPress={() => toggleLike(post)}
-                      hitSlop={8}
-                      accessibilityRole="button"
-                      accessibilityLabel={post.likedByMe ? 'Unlike post' : 'Like post'}>
-                      <IconSymbol
-                        name={post.likedByMe ? 'heart.fill' : 'heart'}
-                        size={18}
-                        color={post.likedByMe ? Palette.accent : Palette.textMuted}
-                      />
-                      {post.likeCount > 0 ? (
-                        <Txt variant="caption" color={post.likedByMe ? Palette.accent : Palette.textMuted}>
-                          {post.likeCount}
-                        </Txt>
-                      ) : null}
-                    </Pressable>
-                    <Pressable
-                      style={styles.engageBtn}
-                      onPress={() => router.push(`/p/${post.id}`)}
-                      hitSlop={8}
-                      accessibilityRole="button"
-                      accessibilityLabel="View comments">
-                      <IconSymbol name="bubble.right" size={18} color={Palette.textMuted} />
-                      {post.commentCount > 0 ? (
-                        <Txt variant="caption" color={Palette.textMuted}>
-                          {post.commentCount}
-                        </Txt>
-                      ) : null}
-                    </Pressable>
-                  </View>
-                </View>
+          ListEmptyComponent={
+            searching ? (
+              <View style={styles.center}>
+                <ActivityIndicator color={Palette.accent} />
               </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
+            ) : (
+              <Txt variant="label" style={styles.emptyText}>
+                No people found for “{query.trim()}”.
+              </Txt>
+            )
+          }
+        />
+      ) : (
+        <FlatList
+          key={`feed-${numColumns}`}
+          data={feed}
+          keyExtractor={(post) => post.id}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? styles.column : undefined}
+          contentContainerStyle={[styles.content, centered]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                load();
+              }}
+              tintColor={Palette.accent}
+            />
+          }
+          renderItem={({ item }) => (
+            <View style={styles.cell}>
+              <FeedCard
+                post={item}
+                onOpen={() => router.push(`/p/${item.id}`)}
+                onToggleLike={() => toggleLike(item)}
+              />
+            </View>
+          )}
+          ListEmptyComponent={
+            loading ? (
+              <View style={styles.center}>
+                <ActivityIndicator color={Palette.accent} />
+              </View>
+            ) : (
+              <EmptyState
+                icon="safari"
+                title="Nothing here yet"
+                subtitle="Public posts from the community show up here. Make your profile public and share a cut to be the first."
+                primaryLabel="Share a cut"
+                onPrimary={() => router.push('/add')}
+              />
+            )
+          }
+        />
       )}
     </Screen>
+  );
+}
+
+/** A single post card in the Explore feed. */
+function FeedCard({
+  post,
+  onOpen,
+  onToggleLike,
+}: {
+  post: PublicPost;
+  onOpen: () => void;
+  onToggleLike: () => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <Pressable onPress={onOpen}>
+        <View style={styles.cardHeader}>
+          {post.author.avatarUrl ? (
+            <Image
+              source={{ uri: post.author.avatarUrl }}
+              style={styles.avatar}
+              contentFit="cover"
+              recyclingKey={post.author.id}
+            />
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <IconSymbol name="person.fill" size={14} color={Palette.textMuted} />
+            </View>
+          )}
+          <Txt variant="label" color={Palette.text}>
+            {post.author.username || post.author.displayName || 'Sif user'}
+          </Txt>
+        </View>
+        <Image
+          source={{ uri: post.photoUrl }}
+          style={styles.photo}
+          contentFit="cover"
+          recyclingKey={post.id}
+        />
+        {post.caption ? (
+          <Txt variant="label" numberOfLines={2} style={styles.caption}>
+            {post.caption}
+          </Txt>
+        ) : null}
+        {post.stylist ? (
+          <View style={styles.stylistCredit}>
+            <IconSymbol name="scissors" size={12} color={Palette.textMuted} />
+            <Txt variant="caption" color={Palette.textMuted} numberOfLines={1}>
+              {post.stylist.displayName || `@${post.stylist.username}`}
+            </Txt>
+          </View>
+        ) : null}
+      </Pressable>
+      <View style={styles.engageRow}>
+        <Pressable
+          style={styles.engageBtn}
+          onPress={onToggleLike}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={post.likedByMe ? 'Unlike post' : 'Like post'}>
+          <IconSymbol
+            name={post.likedByMe ? 'heart.fill' : 'heart'}
+            size={18}
+            color={post.likedByMe ? Palette.accent : Palette.textMuted}
+          />
+          {post.likeCount > 0 ? (
+            <Txt variant="caption" color={post.likedByMe ? Palette.accent : Palette.textMuted}>
+              {post.likeCount}
+            </Txt>
+          ) : null}
+        </Pressable>
+        <Pressable
+          style={styles.engageBtn}
+          onPress={onOpen}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="View comments">
+          <IconSymbol name="bubble.right" size={18} color={Palette.textMuted} />
+          {post.commentCount > 0 ? (
+            <Txt variant="caption" color={Palette.textMuted}>
+              {post.commentCount}
+            </Txt>
+          ) : null}
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -207,8 +242,8 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxl },
   center: { alignItems: 'center', justifyContent: 'center', gap: Spacing.md, paddingVertical: Spacing.xxl * 2 },
   emptyText: { textAlign: 'center', maxWidth: 280, color: Palette.textMuted },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { paddingHorizontal: Spacing.xs, marginBottom: Spacing.lg },
+  column: { gap: Spacing.sm },
+  cell: { flex: 1, marginBottom: Spacing.lg },
   card: {
     backgroundColor: Palette.surface,
     borderRadius: Radius.lg,
