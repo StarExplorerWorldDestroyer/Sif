@@ -9,9 +9,15 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.goldensif.sif",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.goldensif.sif",
       "adaptiveIcon": {
         "backgroundColor": "#0A0503",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
