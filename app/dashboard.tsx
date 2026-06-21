@@ -8,12 +8,15 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { StarRating } from '@/components/ui/stars';
 import { Txt } from '@/components/ui/text';
+import { PAYMENTS_PROVIDER } from '@/constants/payments';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useMoney } from '@/hooks/use-money';
 import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
 import { updateBookingStatus } from '@/lib/bookings';
 import { earningsCsv, exportCsv } from '@/lib/export';
 import { fetchStylistCollected } from '@/lib/payments';
+import { fetchConnectStatus, startConnectOnboarding, type ConnectStatus } from '@/lib/stripe';
+import { useFeedback } from '@/store/feedback';
 import {
   cutsInRange,
   DATE_RANGES,
@@ -51,9 +54,11 @@ export default function DashboardScreen() {
   const centered = useCenteredContent(isDesktop ? 980 : 680);
   const { user } = useAuth();
   const { profile } = useProfile();
+  const { toast } = useFeedback();
 
   const [data, setData] = useState<StylistDashboard | null>(null);
   const [collected, setCollected] = useState(0);
+  const [connect, setConnect] = useState<ConnectStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<DateRange>('month');
 
@@ -66,7 +71,15 @@ export default function DashboardScreen() {
     setData(d);
     setCollected(c);
     setLoading(false);
+    if (PAYMENTS_PROVIDER === 'stripe') {
+      fetchConnectStatus().then(setConnect).catch(() => {});
+    }
   }, [user]);
+
+  const onConnect = useCallback(async () => {
+    const { ok, error } = await startConnectOnboarding();
+    if (!ok && error) toast(error, { tone: 'error' });
+  }, [toast]);
 
   useFocusEffect(
     useCallback(() => {
@@ -439,6 +452,13 @@ export default function DashboardScreen() {
             <Section title="Manage" style={half}>
               <ActionRow icon="calendar" label="Availability & hours" onPress={() => router.push('/availability')} />
               <ActionRow icon="scissors" label="Services & pricing" onPress={() => router.push('/services')} />
+              {PAYMENTS_PROVIDER === 'stripe' ? (
+                <ActionRow
+                  icon="banknote"
+                  label={connect?.chargesEnabled ? 'Payouts active · manage' : 'Set up payouts'}
+                  onPress={onConnect}
+                />
+              ) : null}
               <ActionRow icon="person.2.fill" label="All bookings" onPress={() => router.push('/bookings')} />
               <ActionRow icon="scissors" label="Create a cut for a client" onPress={() => router.push('/add')} />
               <ActionRow icon="pencil" label="Edit profile" onPress={() => router.push('/profile/edit')} />

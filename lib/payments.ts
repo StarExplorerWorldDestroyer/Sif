@@ -1,4 +1,6 @@
+import { PAYMENTS_PROVIDER } from '@/constants/payments';
 import { getPaymentProvider } from '@/lib/payments/provider';
+import { startBookingCheckout } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import type { Booking, Payment, PaymentKind, PaymentMethod } from '@/types';
 
@@ -84,10 +86,16 @@ export async function payForBooking(params: {
   booking: Booking;
   kind: PaymentKind;
   currency: string;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; redirected?: boolean }> {
   const { booking, kind, currency } = params;
   const amount = amountDueFor(booking, kind);
   if (amount <= 0) return { ok: false, error: 'Nothing left to pay on this booking.' };
+
+  // Real money goes through Stripe Checkout: the server creates the session and
+  // the webhook records the payment. We never touch card data or insert here.
+  if (PAYMENTS_PROVIDER === 'stripe') {
+    return startBookingCheckout(booking.id, kind);
+  }
 
   const provider = getPaymentProvider();
   const result = await provider.charge({

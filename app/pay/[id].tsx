@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -57,17 +57,28 @@ export default function CheckoutScreen() {
   }, [id]);
 
   const due = booking ? amountDueFor(booking, payKind) : 0;
+  const isStripe = PAYMENTS_PROVIDER === 'stripe';
 
   const pay = useCallback(async () => {
     if (!booking || paying) return;
     setPaying(true);
-    const { ok, error } = await payForBooking({
+    const { ok, error, redirected } = await payForBooking({
       booking,
       kind: payKind,
       currency: profile?.currency ?? 'USD',
     });
-    setPaying(false);
     if (ok) {
+      if (redirected) {
+        // Stripe: web is already navigating to Checkout; on native the browser
+        // opened, so return to bookings to await webhook confirmation.
+        if (Platform.OS !== 'web') {
+          setPaying(false);
+          router.replace('/bookings');
+          toast('Finish your payment in the browser, then pull to refresh.', { tone: 'success' });
+        }
+        return;
+      }
+      setPaying(false);
       router.replace('/bookings');
       toast(
         payKind === 'deposit'
@@ -76,6 +87,7 @@ export default function CheckoutScreen() {
         { tone: 'success' },
       );
     } else {
+      setPaying(false);
       toast(error ?? 'Payment failed.', { tone: 'error' });
     }
   }, [booking, paying, payKind, profile?.currency, router, toast]);
@@ -144,56 +156,60 @@ export default function CheckoutScreen() {
           <View style={styles.mockBanner}>
             <IconSymbol name="lock.fill" size={14} color={Palette.textMuted} />
             <Txt variant="caption" color={Palette.textMuted} style={{ flex: 1 }}>
-              {PAYMENTS_PROVIDER === 'mock'
-                ? 'Test mode — this is a simulated card. No real money moves.'
-                : 'Payments are encrypted and processed securely.'}
+              {isStripe
+                ? 'You’ll be redirected to Stripe to pay securely. Your card never touches Sif.'
+                : 'Test mode — this is a simulated card. No real money moves.'}
             </Txt>
           </View>
 
-          <Txt variant="label" style={styles.fieldLabel}>
-            Card number
-          </Txt>
-          <View style={styles.cardField}>
-            <IconSymbol name="creditcard" size={20} color={Palette.textMuted} />
-            <TextInput
-              value={card}
-              onChangeText={setCard}
-              placeholder="1234 5678 9012 3456"
-              placeholderTextColor={Palette.textDim}
-              keyboardType="number-pad"
-              style={styles.cardInput}
-            />
-          </View>
-          <View style={styles.cardRow}>
-            <View style={{ flex: 1 }}>
+          {isStripe ? null : (
+            <>
               <Txt variant="label" style={styles.fieldLabel}>
-                Expiry
+                Card number
               </Txt>
-              <TextInput
-                value={exp}
-                onChangeText={setExp}
-                placeholder="MM / YY"
-                placeholderTextColor={Palette.textDim}
-                style={styles.smallInput}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Txt variant="label" style={styles.fieldLabel}>
-                CVC
-              </Txt>
-              <TextInput
-                value={cvc}
-                onChangeText={setCvc}
-                placeholder="123"
-                placeholderTextColor={Palette.textDim}
-                keyboardType="number-pad"
-                style={styles.smallInput}
-              />
-            </View>
-          </View>
+              <View style={styles.cardField}>
+                <IconSymbol name="creditcard" size={20} color={Palette.textMuted} />
+                <TextInput
+                  value={card}
+                  onChangeText={setCard}
+                  placeholder="1234 5678 9012 3456"
+                  placeholderTextColor={Palette.textDim}
+                  keyboardType="number-pad"
+                  style={styles.cardInput}
+                />
+              </View>
+              <View style={styles.cardRow}>
+                <View style={{ flex: 1 }}>
+                  <Txt variant="label" style={styles.fieldLabel}>
+                    Expiry
+                  </Txt>
+                  <TextInput
+                    value={exp}
+                    onChangeText={setExp}
+                    placeholder="MM / YY"
+                    placeholderTextColor={Palette.textDim}
+                    style={styles.smallInput}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Txt variant="label" style={styles.fieldLabel}>
+                    CVC
+                  </Txt>
+                  <TextInput
+                    value={cvc}
+                    onChangeText={setCvc}
+                    placeholder="123"
+                    placeholderTextColor={Palette.textDim}
+                    keyboardType="number-pad"
+                    style={styles.smallInput}
+                  />
+                </View>
+              </View>
+            </>
+          )}
 
           <Pressable
-            style={[styles.payBtn, paying && { opacity: 0.7 }]}
+            style={[styles.payBtn, paying && { opacity: 0.7 }, isStripe && { marginTop: Spacing.xs }]}
             disabled={paying}
             onPress={pay}
             accessibilityRole="button">
@@ -201,7 +217,7 @@ export default function CheckoutScreen() {
               <ActivityIndicator color={Palette.black} />
             ) : (
               <Txt variant="label" color={Palette.black} style={{ fontWeight: '700' }}>
-                Pay {money(due)}
+                {isStripe ? `Continue · ${money(due)}` : `Pay ${money(due)}`}
               </Txt>
             )}
           </Pressable>
