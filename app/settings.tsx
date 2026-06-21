@@ -22,6 +22,15 @@ import { PRIVACY_OPTIONS, type Units } from '@/types';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY'];
 
+const REMINDER_WINDOWS: { minutes: number; label: string }[] = [
+  { minutes: 2880, label: '2 days' },
+  { minutes: 1440, label: '1 day' },
+  { minutes: 720, label: '12 hr' },
+  { minutes: 180, label: '3 hr' },
+  { minutes: 120, label: '2 hr' },
+  { minutes: 60, label: '1 hr' },
+];
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, signOut, sendPasswordReset } = useAuth();
@@ -62,6 +71,16 @@ export default function SettingsScreen() {
 
   const currency = profile?.currency ?? 'USD';
   const units = profile?.units ?? 'in';
+  const reminderMinutes = profile?.bookingReminderMinutes ?? [1440];
+  const remindersOn = profile?.notificationsEnabled ?? true;
+
+  function toggleReminderWindow(minutes: number) {
+    const set = new Set(reminderMinutes);
+    if (set.has(minutes)) set.delete(minutes);
+    else set.add(minutes);
+    const next = Array.from(set).sort((a, b) => b - a);
+    updateProfile({ bookingReminderMinutes: next });
+  }
 
   const reminderRule = profile?.cutReminder?.rule;
   const reminderNext = reminderRule ? nextReminderDate(reminderRule) : null;
@@ -161,6 +180,35 @@ export default function SettingsScreen() {
               thumbColor={Palette.text}
             />
           </View>
+
+          {remindersOn ? (
+            <>
+              <View style={styles.divider} />
+              <Txt variant="label" style={styles.rowLabel}>
+                Remind me before appointments
+              </Txt>
+              <View style={styles.pillRow}>
+                {REMINDER_WINDOWS.map((w) => {
+                  const active = reminderMinutes.includes(w.minutes);
+                  return (
+                    <Pressable
+                      key={w.minutes}
+                      onPress={() => toggleReminderWindow(w.minutes)}
+                      style={[styles.pill, active && styles.pillActive]}>
+                      <Txt variant="caption" color={active ? Palette.black : Palette.textMuted}>
+                        {w.label}
+                      </Txt>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Txt variant="caption" style={styles.hint}>
+                {reminderMinutes.length === 0
+                  ? 'Off — you won’t get appointment reminders. Pick one or more times above.'
+                  : 'Applies to your confirmed appointments. Pick as many as you like.'}
+              </Txt>
+            </>
+          ) : null}
 
           {pushSupported ? (
             <>

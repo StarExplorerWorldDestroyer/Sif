@@ -265,8 +265,9 @@ export async function cancelBooking(id: string, reason: string): Promise<void> {
 }
 
 /**
- * Move a booking to a new time. Resets it to pending (re-confirmation needed)
- * and clears the reminder flag. Returns an error if the new slot is taken.
+ * Move a booking to a new time. Resets it to pending (re-confirmation needed).
+ * Changing `starts_at` also clears any sent reminders via a DB trigger, so the
+ * configured reminders fire again for the new time. Errors if the slot is taken.
  */
 export async function rescheduleBooking(
   id: string,
@@ -274,7 +275,7 @@ export async function rescheduleBooking(
 ): Promise<{ error: string | null }> {
   const { error } = await supabase
     .from('bookings')
-    .update({ starts_at: startsAtISO, status: 'pending', reminder_sent: false })
+    .update({ starts_at: startsAtISO, status: 'pending' })
     .eq('id', id);
   if (error) {
     const taken = error.code === '23505' || error.code === '23P01';

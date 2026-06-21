@@ -17,6 +17,7 @@ export type ProfilePatch = Partial<{
   privacy: Privacy;
   isStylist: boolean;
   notificationsEnabled: boolean;
+  bookingReminderMinutes: number[];
   cutReminder: CutReminder | null;
 }>;
 
@@ -44,6 +45,9 @@ function rowToProfile(row: any): Profile {
     privacy: (row.privacy as Privacy) ?? (row.profile_public ? 'public' : 'private'),
     isStylist: row.is_stylist ?? false,
     notificationsEnabled: row.notifications_enabled ?? true,
+    bookingReminderMinutes: Array.isArray(row.booking_reminder_minutes)
+      ? row.booking_reminder_minutes.map((n: any) => Number(n))
+      : [1440],
     cutReminder: (row.cut_reminder as CutReminder | null) ?? null,
   };
 }
@@ -66,6 +70,8 @@ function patchToRow(patch: ProfilePatch) {
   if (patch.isStylist !== undefined) row.is_stylist = patch.isStylist;
   if (patch.notificationsEnabled !== undefined)
     row.notifications_enabled = patch.notificationsEnabled;
+  if (patch.bookingReminderMinutes !== undefined)
+    row.booking_reminder_minutes = patch.bookingReminderMinutes;
   if (patch.cutReminder !== undefined) row.cut_reminder = patch.cutReminder;
   return row;
 }

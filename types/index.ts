@@ -348,6 +348,11 @@ export type Profile = {
   privacy: Privacy;
   isStylist: boolean;
   notificationsEnabled: boolean;
+  /**
+   * Lead times (minutes before an appointment) at which to send booking
+   * reminders. Defaults to a single 24h reminder ([1440]). Empty = none.
+   */
+  bookingReminderMinutes: number[];
   /** The user's configured "next cut" reminder, or null if none set. */
   cutReminder: CutReminder | null;
 };
