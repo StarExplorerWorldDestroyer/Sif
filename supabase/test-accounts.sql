@@ -1,6 +1,11 @@
 -- Sif: seed test accounts so the platform feels alive, and make those test
 -- accounts automatically connect/follow back.
 --
+-- ⚠️  DO NOT RUN IN PRODUCTION. This creates login-able accounts with a shared,
+-- repo-visible password ('SifTest!2026'). It's for local/staging demos only.
+-- If it was ever run against prod, remove the accounts (see teardown below) or
+-- rotate their passwords before launch.
+--
 -- Paste into the Supabase SQL Editor and Run. Safe to re-run (idempotent).
 -- Run AFTER schema.sql, profiles.sql, posts.sql, public-profiles.sql, social.sql,
 -- notifications.sql, and post-tags.sql.

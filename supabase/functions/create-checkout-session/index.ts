@@ -19,6 +19,16 @@ function round2(n: number): number {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  try {
+    return await handle(req);
+  } catch (err) {
+    // Log the detail server-side; return a generic message to the client.
+    console.error('create-checkout-session error:', err);
+    return json({ error: 'Could not start checkout. Please try again.' }, 500);
+  }
+});
+
+async function handle(req: Request): Promise<Response> {
   const admin = getAdmin();
   const stripe = getStripe();
   const uid = await getUserId(req, admin);
@@ -110,4 +120,4 @@ Deno.serve(async (req) => {
   });
 
   return json({ url: session.url, id: session.id });
-});
+}
