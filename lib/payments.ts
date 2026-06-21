@@ -51,36 +51,13 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-type RecordArgs = {
-  bookingId: string;
-  payerId: string;
-  payeeId: string;
-  amount: number;
-  currency: string;
-  kind: PaymentKind;
-  method: PaymentMethod;
-  provider: string;
-  providerRef: string;
-};
-
-async function recordPayment(args: RecordArgs): Promise<void> {
-  await supabase.from('payments').insert({
-    booking_id: args.bookingId,
-    payer_id: args.payerId,
-    payee_id: args.payeeId,
-    amount: args.amount,
-    currency: args.currency,
-    kind: args.kind,
-    method: args.method,
-    status: 'succeeded',
-    provider: args.provider,
-    provider_ref: args.providerRef,
-  });
-}
-
 /**
  * Charge the client (via the active provider) for a booking and record the
  * payment. Called by the client paying a deposit or balance in-app.
+ *
+ * The payment row is written server-side (Stripe webhook for real money, or the
+ * `pay_booking_mock` RPC for the mock provider) which recomputes the amount from
+ * the booking — the client never names its own price.
  */
 export async function payForBooking(params: {
   booking: Booking;
@@ -107,44 +84,35 @@ export async function payForBooking(params: {
     return { ok: false, error: result.error ?? 'Your payment could not be processed.' };
   }
 
-  await recordPayment({
-    bookingId: booking.id,
-    payerId: booking.clientId,
-    payeeId: booking.stylistId,
-    amount,
-    currency,
-    kind,
-    method: 'app',
-    provider: result.provider,
-    providerRef: result.providerRef,
+  // The amount is recomputed in the RPC from the booking, so a tampered client
+  // can't record an arbitrary amount.
+  const { error } = await supabase.rpc('pay_booking_mock', {
+    p_booking_id: booking.id,
+    p_kind: kind,
   });
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 
 /**
  * Stylist records that the client paid the remaining balance out-of-band
- * (cash or other). No provider charge — just a ledger entry.
+ * (cash or other). The RPC validates the caller is the stylist and computes the
+ * outstanding balance server-side.
  */
 export async function markPaidManually(params: {
   booking: Booking;
   method: Exclude<PaymentMethod, 'app'>;
   currency: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  const { booking, method, currency } = params;
+  const { booking, method } = params;
   const amount = round2(Math.max(0, booking.price - booking.amountPaid));
   if (amount <= 0) return { ok: false, error: 'This booking is already fully paid.' };
 
-  await recordPayment({
-    bookingId: booking.id,
-    payerId: booking.clientId,
-    payeeId: booking.stylistId,
-    amount,
-    currency,
-    kind: booking.amountPaid > 0 ? 'balance' : 'full',
-    method,
-    provider: 'manual',
-    providerRef: '',
+  const { error } = await supabase.rpc('record_manual_payment', {
+    p_booking_id: booking.id,
+    p_method: method,
   });
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 

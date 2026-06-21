@@ -225,6 +225,9 @@ export async function createBooking(params: {
   bufferBeforeMinutes?: number;
   bufferAfterMinutes?: number;
 }): Promise<{ id: string | null; error: string | null }> {
+  // price / deposit / buffers are set server-side from the stylist's service and
+  // deposit policy (see set_booking_pricing trigger); anything sent here is
+  // ignored, so a client can't book at a price it chose.
   const { data, error } = await supabase
     .from('bookings')
     .insert({
@@ -233,10 +236,6 @@ export async function createBooking(params: {
       duration_minutes: params.durationMinutes,
       note: params.note.trim(),
       service_id: params.serviceId ?? null,
-      price: params.price ?? 0,
-      deposit_amount: params.depositAmount ?? 0,
-      buffer_before_minutes: params.bufferBeforeMinutes ?? 0,
-      buffer_after_minutes: params.bufferAfterMinutes ?? 0,
     })
     .select('id')
     .single();
@@ -253,7 +252,7 @@ export async function updateBookingStatus(id: string, status: BookingStatus): Pr
 
 /** Set what the stylist charged for a booking (used for earnings). */
 export async function updateBookingPrice(id: string, price: number): Promise<void> {
-  await supabase.from('bookings').update({ price }).eq('id', id);
+  await supabase.rpc('set_booking_price', { p_booking_id: id, p_price: price });
 }
 
 /** Cancel a booking with an optional reason (visible to the other party). */

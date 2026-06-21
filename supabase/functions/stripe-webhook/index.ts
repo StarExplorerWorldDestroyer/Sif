@@ -38,12 +38,28 @@ Deno.serve(async (req) => {
     const session = event.data.object as Stripe.Checkout.Session;
     if (session.payment_status === 'paid' && session.metadata) {
       const m = session.metadata;
+      // Reconcile against the booking: trust the DB for the parties and Stripe's
+      // own amount_total for the figure, not the (mutable) metadata amount.
+      const { data: bk } = await admin
+        .from('bookings')
+        .select('id, client_id, stylist_id')
+        .eq('id', m.booking_id)
+        .maybeSingle();
+      if (!bk) return new Response('Unknown booking', { status: 400 });
+      if (bk.client_id !== m.payer_id || bk.stylist_id !== m.payee_id) {
+        return new Response('Booking/party mismatch', { status: 400 });
+      }
+      const amount =
+        typeof session.amount_total === 'number'
+          ? session.amount_total / 100
+          : Number(m.amount ?? 0);
+
       const { error } = await admin.from('payments').insert({
-        booking_id: m.booking_id,
-        payer_id: m.payer_id,
-        payee_id: m.payee_id,
-        amount: Number(m.amount ?? 0),
-        currency: (m.currency ?? 'usd').toUpperCase(),
+        booking_id: bk.id,
+        payer_id: bk.client_id,
+        payee_id: bk.stylist_id,
+        amount,
+        currency: (session.currency ?? m.currency ?? 'usd').toUpperCase(),
         kind: m.kind ?? 'full',
         method: 'app',
         status: 'succeeded',

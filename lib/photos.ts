@@ -67,7 +67,12 @@ export async function uploadPhoto(
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
-/** Upload a photo attached to a direct message and return its public URL. */
+/**
+ * Upload a photo attached to a direct message and return its storage PATH.
+ * The `message-photos` bucket is private (readable only by conversation
+ * participants), so callers resolve a short-lived signed URL for display via
+ * `signMessagePhoto` rather than using a public URL.
+ */
 export async function uploadMessagePhoto(
   userId: string,
   conversationId: string,
@@ -86,7 +91,7 @@ export async function uploadMessagePhoto(
     .upload(path, body, { contentType, upsert: true });
   if (error) throw error;
 
-  return supabase.storage.from('message-photos').getPublicUrl(path).data.publicUrl;
+  return path;
 }
 
 /** Upload a profile avatar and return its public URL (cache-busted). */

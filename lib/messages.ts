@@ -64,14 +64,52 @@ export async function fetchConversationOther(
   return cards[0] ?? fallbackCard(otherId);
 }
 
-/** Messages in a conversation, oldest first. */
+const MSG_PHOTO_BUCKET = 'message-photos';
+const SIGNED_URL_TTL = 60 * 60; // 1 hour
+
+/**
+ * Extract the storage path for a message photo. Accepts a raw path (current
+ * format) or a legacy public URL (from before the bucket was made private).
+ */
+function messagePhotoPath(imageUrl: string): string {
+  const marker = `/${MSG_PHOTO_BUCKET}/`;
+  const i = imageUrl.indexOf(marker);
+  return i >= 0 ? imageUrl.slice(i + marker.length).split('?')[0] : imageUrl;
+}
+
+/** Resolve a single message photo (path or legacy URL) to a signed URL. */
+export async function signMessagePhoto(imageUrl: string | null): Promise<string | null> {
+  if (!imageUrl) return null;
+  const { data } = await supabase.storage
+    .from(MSG_PHOTO_BUCKET)
+    .createSignedUrl(messagePhotoPath(imageUrl), SIGNED_URL_TTL);
+  return data?.signedUrl ?? null;
+}
+
+/** Replace each message's imageUrl with a short-lived signed URL, in place. */
+async function signMessagePhotos(msgs: DirectMessage[]): Promise<void> {
+  const withImg = msgs.filter((m) => m.imageUrl);
+  if (withImg.length === 0) return;
+  const { data } = await supabase.storage
+    .from(MSG_PHOTO_BUCKET)
+    .createSignedUrls(withImg.map((m) => messagePhotoPath(m.imageUrl!)), SIGNED_URL_TTL);
+  if (!data) return;
+  withImg.forEach((m, i) => {
+    const signed = data[i]?.signedUrl;
+    if (signed) m.imageUrl = signed;
+  });
+}
+
+/** Messages in a conversation, oldest first (photo URLs signed for display). */
 export async function fetchMessages(conversationId: string): Promise<DirectMessage[]> {
   const { data } = await supabase
     .from('messages')
     .select('*')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
-  return (data ?? []).map(rowToMessage);
+  const msgs = (data ?? []).map(rowToMessage);
+  await signMessagePhotos(msgs);
+  return msgs;
 }
 
 /** Send a message (text, photo, and/or shared post); returns it or null. */

@@ -25,6 +25,7 @@ import {
   fetchMessages,
   markConversationRead,
   sendMessage,
+  signMessagePhoto,
 } from '@/lib/messages';
 import { submitOnEnter } from '@/lib/keyboard';
 import { uploadMessagePhoto } from '@/lib/photos';
@@ -128,23 +129,26 @@ export default function ThreadScreen() {
         },
         (payload) => {
           const m = payload.new as any;
-          setMessages((prev) =>
-            prev.some((x) => x.id === m.id)
-              ? prev
-              : [
-                  ...prev,
-                  {
-                    id: m.id,
-                    conversationId: m.conversation_id,
-                    senderId: m.sender_id,
-                    body: m.body ?? '',
-                    imageUrl: m.image_url ?? null,
-                    postId: m.post_id ?? null,
-                    createdAt: m.created_at,
-                    readAt: m.read_at ?? null,
-                  },
-                ],
-          );
+          const incoming: DirectMessage = {
+            id: m.id,
+            conversationId: m.conversation_id,
+            senderId: m.sender_id,
+            body: m.body ?? '',
+            imageUrl: m.image_url ?? null,
+            postId: m.post_id ?? null,
+            createdAt: m.created_at,
+            readAt: m.read_at ?? null,
+          };
+          setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, incoming]));
+          // Photos live in a private bucket; swap in a signed URL for display.
+          if (incoming.imageUrl) {
+            signMessagePhoto(incoming.imageUrl).then((signed) => {
+              if (signed)
+                setMessages((prev) =>
+                  prev.map((x) => (x.id === m.id ? { ...x, imageUrl: signed } : x)),
+                );
+            });
+          }
           if (m.sender_id !== user?.id) markRead();
           scrollToEnd();
         },
@@ -264,6 +268,8 @@ export default function ThreadScreen() {
     const msg = await sendMessage(conversationId, text, imageUrl);
     setSending(false);
     if (msg) {
+      // Resolve a signed URL so the just-sent photo renders from the private bucket.
+      if (msg.imageUrl) msg.imageUrl = (await signMessagePhoto(msg.imageUrl)) ?? msg.imageUrl;
       setMessages((prev) => (prev.some((x) => x.id === msg.id) ? prev : [...prev, msg]));
       refetchInbox();
       scrollToEnd();
