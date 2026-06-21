@@ -1,7 +1,7 @@
 import { AppImage as Image } from '@/components/ui/app-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
@@ -69,21 +69,22 @@ export default function MessagesScreen() {
           onPrimary={() => router.push('/messages/new')}
         />
       ) : (
-        <ScrollView
+        <FlatList
+          data={conversations}
+          keyExtractor={(c) => c.id}
           contentContainerStyle={[styles.content, centered]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.accent} />
-          }>
-          {conversations.map((c) => (
+          }
+          renderItem={({ item: c }) => (
             <Row
-              key={c.id}
               conversation={c}
               mine={c.lastSender === user?.id}
               onPress={() => router.push(`/messages/${c.id}?other=${c.other.id}`)}
             />
-          ))}
-        </ScrollView>
+          )}
+        />
       )}
     </SafeAreaView>
   );
@@ -104,7 +105,12 @@ function Row({
   return (
     <Pressable style={styles.row} onPress={onPress}>
       {other.avatarUrl ? (
-        <Image source={{ uri: other.avatarUrl }} style={styles.avatar} contentFit="cover" />
+        <Image
+          source={{ uri: other.avatarUrl }}
+          style={styles.avatar}
+          contentFit="cover"
+          recyclingKey={other.id}
+        />
       ) : (
         <View style={[styles.avatar, styles.avatarPlaceholder]}>
           <IconSymbol name="person.fill" size={18} color={Palette.textMuted} />

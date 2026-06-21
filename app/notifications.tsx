@@ -3,9 +3,9 @@ import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   View,
   type StyleProp,
@@ -141,14 +141,16 @@ export default function NotificationsScreen() {
           </Txt>
         </View>
       ) : (
-        <ScrollView
+        <FlatList
+          data={notifications}
+          keyExtractor={(n) => n.id}
           contentContainerStyle={[styles.content, centered]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.accent} />
-          }>
-          {notifications.map((n) => (
-            <NotifLink key={n.id} to={href(n)} style={[styles.row, !n.read && styles.unreadRow]}>
+          }
+          renderItem={({ item: n }) => (
+            <NotifLink to={href(n)} style={[styles.row, !n.read && styles.unreadRow]}>
               <Avatar uri={n.actor?.avatarUrl ?? ''} type={n.type} />
               <View style={{ flex: 1 }}>
                 <Txt variant="body">{message(n)}</Txt>
@@ -158,8 +160,8 @@ export default function NotificationsScreen() {
               </View>
               {!n.read ? <View style={styles.dot} /> : null}
             </NotifLink>
-          ))}
-        </ScrollView>
+          )}
+        />
       )}
     </SafeAreaView>
   );
@@ -203,7 +205,7 @@ function Avatar({ uri, type }: { uri: string; type: AppNotification['type'] }) {
               : type === 'follow'
                 ? 'person.fill'
                 : 'person.2.fill';
-  if (uri) return <Image source={{ uri }} style={styles.avatar} contentFit="cover" />;
+  if (uri) return <Image source={{ uri }} style={styles.avatar} contentFit="cover" recyclingKey={uri} />;
   return (
     <View style={[styles.avatar, styles.avatarPlaceholder]}>
       <IconSymbol name={icon} size={18} color={Palette.textMuted} />
