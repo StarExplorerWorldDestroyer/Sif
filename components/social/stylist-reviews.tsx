@@ -7,15 +7,8 @@ import { StarRating } from '@/components/ui/stars';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { fetchStylistReviews, replyToReview } from '@/lib/reviews';
+import { timeAgoReview } from '@/lib/time-ago';
 import type { Review } from '@/types';
-
-function timeAgo(iso: string): string {
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days < 1) return 'today';
-  if (days < 7) return `${days}d ago`;
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-}
 
 /**
  * Read-only ratings summary + review list for a stylist's public profile.
@@ -114,7 +107,7 @@ export function StylistReviews({
                     {name}
                   </Txt>
                   <Txt variant="caption" color={Palette.textDim}>
-                    {timeAgo(r.createdAt)}
+                    {timeAgoReview(r.createdAt)}
                   </Txt>
                 </View>
                 <StarRating value={r.rating} size={12} />

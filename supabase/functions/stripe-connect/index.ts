@@ -95,6 +95,6 @@ Deno.serve(async (req) => {
     return json({ url: link.url });
   } catch (err) {
     console.error('stripe-connect error:', err);
-    return json({ error: (err as Error).message ?? 'Stripe error.' }, 500);
+    return json({ error: 'Could not start payout onboarding. Please try again.' }, 500);
   }
 });

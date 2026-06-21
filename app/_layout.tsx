@@ -108,7 +108,9 @@ function RootNavigator() {
       <Stack.Screen name="messages/share" options={{ headerShown: false }} />
       <Stack.Screen name="messages/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="book/[id]" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="pay/[id]" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="availability" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="services" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="reset" options={{ headerShown: false }} />
     </Stack>
   );
