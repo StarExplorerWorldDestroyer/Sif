@@ -1,15 +1,7 @@
 import { AppImage as Image } from '@/components/ui/app-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
@@ -17,6 +9,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { StarRating } from '@/components/ui/stars';
 import { TabHeader } from '@/components/ui/tab-header';
 import { Txt } from '@/components/ui/text';
+import { UserSearchBox } from '@/components/ui/user-search-box';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import {
   HAIRCUT_STYLES,
@@ -189,18 +182,14 @@ function StylistDirectory({
       contentContainerStyle={[styles.content, centered]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}>
-      <View style={styles.searchBox}>
-        <IconSymbol name="person.fill" size={16} color={Palette.textMuted} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search stylists"
-          placeholderTextColor={Palette.textDim}
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={styles.searchInput}
-        />
-      </View>
+      <UserSearchBox
+        value={query}
+        onChangeText={setQuery}
+        onClear={() => setQuery('')}
+        shape="pill"
+        placeholder="Search stylists"
+        style={styles.searchSpacing}
+      />
 
       <View style={styles.sortRow}>
         <Chip label="Top rated" active={sort === 'rating'} onPress={() => setSort('rating')} />
@@ -345,19 +334,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
   },
   modeTabActive: { backgroundColor: Palette.accent },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Palette.border,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  searchInput: { flex: 1, color: Palette.text, fontSize: 15, paddingVertical: 2 },
+  searchSpacing: { marginBottom: Spacing.md },
   sortRow: { flexDirection: 'row', gap: Spacing.xs, marginBottom: Spacing.md },
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xxl },
   stylistRow: {

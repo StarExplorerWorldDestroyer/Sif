@@ -13,15 +13,17 @@ type Props = {
   trailing?: ReactNode;
   /** Append " · private" to non-public handles. Defaults to true. */
   showPrivacy?: boolean;
+  /** Draw the bottom hairline divider. Defaults to true. */
+  divider?: boolean;
 };
 
 /**
  * The avatar + name + @username body of a people-search result. Wrap it in a
  * Pressable or Link (and pass a `trailing` icon) for the screen's behavior.
  */
-export function UserResultRow({ user, trailing, showPrivacy = true }: Props) {
+export function UserResultRow({ user, trailing, showPrivacy = true, divider = true }: Props) {
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, !divider && styles.noDivider]}>
       {user.avatarUrl ? (
         <Image source={{ uri: user.avatarUrl }} style={styles.avatar} contentFit="cover" />
       ) : (
@@ -63,6 +65,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Palette.border,
   },
+  noDivider: { borderBottomWidth: 0 },
   avatar: { width: 44, height: 44, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt },
   placeholder: { alignItems: 'center', justifyContent: 'center' },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },

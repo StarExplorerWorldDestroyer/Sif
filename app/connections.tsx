@@ -1,4 +1,3 @@
-import { AppImage as Image } from '@/components/ui/app-image';
 import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import {
@@ -16,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { Txt } from '@/components/ui/text';
+import { UserResultRow } from '@/components/ui/user-result-row';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useRefresh } from '@/hooks/use-refresh';
@@ -71,19 +71,9 @@ export default function ConnectionsScreen() {
                 REQUESTS
               </Txt>
               {incoming.map((u) => (
-                <View key={u.id} style={styles.row}>
+                <View key={u.id} style={styles.requestRow}>
                   <PersonLink username={u.username} style={styles.person}>
-                    <Avatar uri={u.avatarUrl} />
-                    <View style={{ flex: 1 }}>
-                      <Txt variant="body" numberOfLines={1}>
-                        {u.displayName || u.username || 'Sif user'}
-                      </Txt>
-                      {u.username ? (
-                        <Txt variant="caption" color={Palette.textMuted}>
-                          @{u.username}
-                        </Txt>
-                      ) : null}
-                    </View>
+                    <UserResultRow user={u} divider={false} showPrivacy={false} />
                   </PersonLink>
                   <View style={styles.actions}>
                     <Pressable
@@ -121,21 +111,12 @@ export default function ConnectionsScreen() {
             </Txt>
           ) : (
             connected.map((u) => (
-              <PersonLink key={u.id} username={u.username} style={styles.row}>
-                <View style={styles.person}>
-                  <Avatar uri={u.avatarUrl} />
-                  <View style={{ flex: 1 }}>
-                    <Txt variant="body" numberOfLines={1}>
-                      {u.displayName || u.username || 'Sif user'}
-                    </Txt>
-                    {u.username ? (
-                      <Txt variant="caption" color={Palette.textMuted}>
-                        @{u.username}
-                      </Txt>
-                    ) : null}
-                  </View>
-                </View>
-                <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+              <PersonLink key={u.id} username={u.username}>
+                <UserResultRow
+                  user={u}
+                  showPrivacy={false}
+                  trailing={<IconSymbol name="chevron.right" size={16} color={Palette.textDim} />}
+                />
               </PersonLink>
             ))
           )}
@@ -167,25 +148,14 @@ function PersonLink({
   );
 }
 
-function Avatar({ uri }: { uri: string }) {
-  if (uri) return <Image source={{ uri }} style={styles.avatar} contentFit="cover" />;
-  return (
-    <View style={[styles.avatar, styles.avatarPlaceholder]}>
-      <IconSymbol name="person.fill" size={18} color={Palette.textMuted} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.black },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   sectionTitle: { marginTop: Spacing.lg, marginBottom: Spacing.sm, letterSpacing: 1 },
   empty: { color: Palette.textMuted },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
-  person: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flex: 1 },
-  avatar: { width: 44, height: 44, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt },
-  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  requestRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  person: { flex: 1 },
   actions: { flexDirection: 'row', gap: Spacing.xs },
   smallBtn: {
     paddingHorizontal: Spacing.md,
