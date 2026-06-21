@@ -110,7 +110,6 @@ function RootNavigator() {
       <Stack.Screen name="book/[id]" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="availability" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="reset" options={{ headerShown: false }} />
-      <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
     </Stack>
   );
 }

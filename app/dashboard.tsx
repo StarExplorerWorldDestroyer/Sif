@@ -14,6 +14,7 @@ import { useMoney } from '@/hooks/use-money';
 import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
 import { updateBookingStatus } from '@/lib/bookings';
 import { earningsCsv, exportCsv } from '@/lib/export';
+import { formatDateTime } from '@/lib/format';
 import { fetchStylistCollected } from '@/lib/payments';
 import { fetchConnectStatus, startConnectOnboarding, type ConnectStatus } from '@/lib/stripe';
 import { useFeedback } from '@/store/feedback';
@@ -31,13 +32,6 @@ import { useProfile } from '@/store/profile';
 import type { Booking } from '@/types';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  const date = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  return `${date} · ${time}`;
-}
 
 function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
@@ -184,7 +178,7 @@ export default function DashboardScreen() {
                         {clientLabel(b)}
                       </Txt>
                       <Txt variant="caption" color={Palette.textMuted}>
-                        {formatWhen(b.startsAt)}
+                        {formatDateTime(b.startsAt)}
                       </Txt>
                     </View>
                     <Pressable
@@ -215,7 +209,7 @@ export default function DashboardScreen() {
                         {clientLabel(b)}
                       </Txt>
                       <Txt variant="caption" color={Palette.textMuted}>
-                        {formatWhen(b.startsAt)}
+                        {formatDateTime(b.startsAt)}
                       </Txt>
                     </View>
                     <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />

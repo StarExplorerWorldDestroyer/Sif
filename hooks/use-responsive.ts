@@ -18,8 +18,3 @@ export function useCenteredContent(maxWidth = 760) {
   const isDesktop = useIsDesktop();
   return isDesktop ? { maxWidth, width: '100%' as const, alignSelf: 'center' as const } : null;
 }
-
-/** Number of grid columns for photo grids/feeds, responsive to width. */
-export function useGridColumns(mobile = 3, desktop = 3): number {
-  return useIsDesktop() ? desktop : mobile;
-}

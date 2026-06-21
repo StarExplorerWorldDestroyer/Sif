@@ -8,19 +8,13 @@ import { Txt } from '@/components/ui/text';
 import { PAYMENTS_PROVIDER } from '@/constants/payments';
 import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 import { fetchBooking } from '@/lib/bookings';
+import { formatDateTime } from '@/lib/format';
 import { amountDueFor, payForBooking } from '@/lib/payments';
 import { useMoney } from '@/hooks/use-money';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useFeedback } from '@/store/feedback';
 import { useProfile } from '@/store/profile';
 import type { Booking, PaymentKind } from '@/types';
-
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  const date = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  return `${date} · ${time}`;
-}
 
 export default function CheckoutScreen() {
   const router = useRouter();
@@ -138,7 +132,7 @@ export default function CheckoutScreen() {
             <Txt variant="caption" color={Palette.textMuted}>
               {booking.serviceName || 'Appointment'}
               {' · '}
-              {formatWhen(booking.startsAt)}
+              {formatDateTime(booking.startsAt)}
             </Txt>
             {booking.price > 0 ? (
               <View style={styles.breakdown}>

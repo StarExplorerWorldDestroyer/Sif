@@ -19,6 +19,14 @@ export function formatDate(iso: string): string {
   });
 }
 
+/** Format an ISO date string as "Fri, May 1 · 3:30 PM" (used for bookings). */
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return `${date} · ${time}`;
+}
+
 export type Stats = {
   totalSpent: number;
   average: number;

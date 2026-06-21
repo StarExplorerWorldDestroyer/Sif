@@ -1,18 +1,21 @@
 import { AppImage as Image } from '@/components/ui/app-image';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useCallback, useState, type ReactNode } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Screen } from '@/components/ui/screen';
 import { TabHeader } from '@/components/ui/tab-header';
 import { Txt } from '@/components/ui/text';
+import { UserResultRow } from '@/components/ui/user-result-row';
+import { UserSearchBox } from '@/components/ui/user-search-box';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { setPostLike } from '@/lib/engagement';
-import { fetchPublicFeed, searchUsers } from '@/lib/public';
+import { fetchPublicFeed } from '@/lib/public';
 import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
-import type { PublicPost, UserSearchResult } from '@/types';
+import { useUserSearch } from '@/hooks/use-user-search';
+import type { PublicPost } from '@/types';
 
 export default function ExploreScreen() {
   const router = useRouter();
@@ -22,10 +25,7 @@ export default function ExploreScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<UserSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const searchActive = query.trim().length >= 2;
+  const { query, setQuery, results, searching, active: searchActive, clear } = useUserSearch();
 
   const load = useCallback(async () => {
     const posts = await fetchPublicFeed();
@@ -52,49 +52,12 @@ export default function ExploreScreen() {
     setPostLike(post.id, like).catch(() => load());
   }, [load]);
 
-  // Debounced user search.
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setResults([]);
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    const t = setTimeout(async () => {
-      const found = await searchUsers(q);
-      setResults(found);
-      setSearching(false);
-    }, 250);
-    return () => clearTimeout(t);
-  }, [query]);
-
   return (
     <Screen padded={false}>
       <TabHeader title="Explore" />
 
       <View style={[styles.searchWrap, centered]}>
-        <View style={styles.searchBox}>
-          <IconSymbol name="person.fill" size={16} color={Palette.textMuted} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search people by name or @username"
-            placeholderTextColor={Palette.textDim}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.searchInput}
-          />
-          {query.length > 0 ? (
-            <Pressable
-              onPress={() => setQuery('')}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Clear search">
-              <IconSymbol name="xmark" size={16} color={Palette.textMuted} />
-            </Pressable>
-          ) : null}
-        </View>
+        <UserSearchBox value={query} onChangeText={setQuery} onClear={clear} shape="pill" />
       </View>
 
       {searchActive ? (
@@ -113,34 +76,10 @@ export default function ExploreScreen() {
           ) : (
             results.map((u) => (
               <UserRowLink key={u.id} username={u.username}>
-                {u.avatarUrl ? (
-                  <Image source={{ uri: u.avatarUrl }} style={styles.userAvatar} contentFit="cover" />
-                ) : (
-                  <View style={[styles.userAvatar, styles.avatarPlaceholder]}>
-                    <IconSymbol name="person.fill" size={18} color={Palette.textMuted} />
-                  </View>
-                )}
-                <View style={{ flex: 1 }}>
-                  <View style={styles.nameRow}>
-                    <Txt variant="body" numberOfLines={1}>
-                      {u.displayName || u.username || 'Sif user'}
-                    </Txt>
-                    {u.isStylist ? (
-                      <View style={styles.stylistBadge}>
-                        <Txt variant="caption" color={Palette.black}>
-                          Stylist
-                        </Txt>
-                      </View>
-                    ) : null}
-                  </View>
-                  {u.username ? (
-                    <Txt variant="caption" color={Palette.textMuted}>
-                      @{u.username}
-                      {u.privacy !== 'public' ? ' · private' : ''}
-                    </Txt>
-                  ) : null}
-                </View>
-                <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+                <UserResultRow
+                  user={u}
+                  trailing={<IconSymbol name="chevron.right" size={16} color={Palette.textDim} />}
+                />
               </UserRowLink>
             ))
           )}
@@ -255,44 +194,16 @@ export default function ExploreScreen() {
  * browsers.
  */
 function UserRowLink({ username, children }: { username: string | null; children: ReactNode }) {
-  if (!username) return <View style={styles.userRow}>{children}</View>;
+  if (!username) return <View>{children}</View>;
   return (
     <Link href={`/u/${username}`} asChild>
-      <Pressable style={styles.userRow}>{children}</Pressable>
+      <Pressable>{children}</Pressable>
     </Link>
   );
 }
 
 const styles = StyleSheet.create({
   searchWrap: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Palette.border,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  searchInput: { flex: 1, color: Palette.text, fontSize: 15, paddingVertical: 2 },
-  userRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Palette.border,
-  },
-  userAvatar: { width: 44, height: 44, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  stylistBadge: {
-    backgroundColor: Palette.accent,
-    borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 1,
-  },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxl },
   center: { alignItems: 'center', justifyContent: 'center', gap: Spacing.md, paddingVertical: Spacing.xxl * 2 },
   emptyText: { textAlign: 'center', maxWidth: 280, color: Palette.textMuted },

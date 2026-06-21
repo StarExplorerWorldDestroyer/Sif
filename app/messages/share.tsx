@@ -6,10 +6,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
+import { UserResultRow } from '@/components/ui/user-result-row';
+import { UserSearchBox } from '@/components/ui/user-search-box';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { useUserSearch } from '@/hooks/use-user-search';
 import { getOrCreateConversation, sendMessage } from '@/lib/messages';
-import { fetchPublicPost, searchUsers } from '@/lib/public';
+import { fetchPublicPost } from '@/lib/public';
 import { useAuth } from '@/store/auth';
 import { useMessages } from '@/store/messages';
 import type { PublicPost, UserSearchResult } from '@/types';
@@ -23,33 +26,16 @@ export default function SharePostScreen() {
 
   const [post, setPost] = useState<PublicPost | null>(null);
   const [note, setNote] = useState('');
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<UserSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
   const [sendingTo, setSendingTo] = useState<string | null>(null);
 
-  const searchActive = query.trim().length >= 2;
+  const { query, setQuery, results, searching, active: searchActive, clear } = useUserSearch({
+    excludeId: user?.id,
+  });
 
   useEffect(() => {
     if (!postId) return;
     fetchPublicPost(postId).then(setPost);
   }, [postId]);
-
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setResults([]);
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    const t = setTimeout(async () => {
-      const found = await searchUsers(q);
-      setResults(found.filter((u) => u.id !== user?.id));
-      setSearching(false);
-    }, 250);
-    return () => clearTimeout(t);
-  }, [query, user?.id]);
 
   const shareWith = async (otherId: string) => {
     if (!postId || sendingTo) return;
@@ -111,23 +97,7 @@ export default function SharePostScreen() {
           multiline
         />
 
-        <View style={styles.searchBox}>
-          <IconSymbol name="person.fill" size={16} color={Palette.textMuted} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search people by name or @username"
-            placeholderTextColor={Palette.textDim}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.searchInput}
-          />
-          {query.length > 0 ? (
-            <Pressable onPress={() => setQuery('')} hitSlop={8}>
-              <IconSymbol name="xmark" size={16} color={Palette.textMuted} />
-            </Pressable>
-          ) : null}
-        </View>
+        <UserSearchBox value={query} onChangeText={setQuery} onClear={clear} />
 
         {searchActive ? (
           searching ? (
@@ -182,29 +152,18 @@ function RecipientRow({
   onPress: () => void;
 }) {
   return (
-    <Pressable style={styles.row} onPress={onPress} disabled={busy}>
-      {user.avatarUrl ? (
-        <Image source={{ uri: user.avatarUrl }} style={styles.avatar} contentFit="cover" />
-      ) : (
-        <View style={[styles.avatar, styles.placeholder]}>
-          <IconSymbol name="person.fill" size={18} color={Palette.textMuted} />
-        </View>
-      )}
-      <View style={{ flex: 1 }}>
-        <Txt variant="body" numberOfLines={1}>
-          {user.displayName || user.username || 'Sif user'}
-        </Txt>
-        {user.username ? (
-          <Txt variant="caption" color={Palette.textMuted}>
-            @{user.username}
-          </Txt>
-        ) : null}
-      </View>
-      {busy ? (
-        <ActivityIndicator color={Palette.accent} size="small" />
-      ) : (
-        <IconSymbol name="paperplane.fill" size={18} color={Palette.accent} />
-      )}
+    <Pressable onPress={onPress} disabled={busy}>
+      <UserResultRow
+        user={user}
+        showPrivacy={false}
+        trailing={
+          busy ? (
+            <ActivityIndicator color={Palette.accent} size="small" />
+          ) : (
+            <IconSymbol name="paperplane.fill" size={18} color={Palette.accent} />
+          )
+        }
+      />
     </Pressable>
   );
 }
@@ -239,27 +198,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     minHeight: 44,
   },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Palette.border,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  searchInput: { flex: 1, color: Palette.text, fontSize: 15, paddingVertical: 2 },
   sectionLabel: { letterSpacing: 1, marginTop: Spacing.sm },
   emptyText: { textAlign: 'center', paddingTop: Spacing.lg, color: Palette.textMuted },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Palette.border,
-  },
-  avatar: { width: 44, height: 44, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt },
 });
