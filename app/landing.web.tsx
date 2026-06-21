@@ -121,7 +121,10 @@ export default function Landing() {
         sif.add(model);
       },
       undefined,
-      (err) => console.error('Failed to load Sif GLB', err),
+      () => {
+        // GLB failed to load (offline/asset missing); the holo backdrop still
+        // renders, so fail silently rather than spamming the console.
+      },
     );
 
     const resize = () => {

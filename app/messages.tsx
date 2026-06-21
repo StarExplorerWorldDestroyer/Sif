@@ -11,22 +11,10 @@ import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useRefresh } from '@/hooks/use-refresh';
+import { timeAgoShort } from '@/lib/time-ago';
 import { useAuth } from '@/store/auth';
 import { useMessages } from '@/store/messages';
 import type { Conversation } from '@/types';
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return '';
-  const diff = Math.max(0, Date.now() - new Date(iso).getTime());
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d`;
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
 
 export default function MessagesScreen() {
   const router = useRouter();
@@ -122,7 +110,7 @@ function Row({
             {name}
           </Txt>
           <Txt variant="caption" color={Palette.textDim}>
-            {timeAgo(lastMessageAt)}
+            {timeAgoShort(lastMessageAt)}
           </Txt>
         </View>
         <Txt

@@ -31,20 +31,11 @@ import { submitOnEnter } from '@/lib/keyboard';
 import { uploadMessagePhoto } from '@/lib/photos';
 import { fetchCardsByIds, fetchPublicPostsByIds } from '@/lib/public';
 import { supabase } from '@/lib/supabase';
+import { dayLabel } from '@/lib/time-ago';
 import { useAuth } from '@/store/auth';
 import { useFeedback } from '@/store/feedback';
 import { useMessages } from '@/store/messages';
 import type { DirectMessage, PublicPost, UserSearchResult } from '@/types';
-
-function dayLabel(iso: string): string {
-  const d = new Date(iso);
-  const today = new Date();
-  const yest = new Date();
-  yest.setDate(today.getDate() - 1);
-  if (d.toDateString() === today.toDateString()) return 'Today';
-  if (d.toDateString() === yest.toDateString()) return 'Yesterday';
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-}
 
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
