@@ -37,3 +37,29 @@ export async function getUserId(req: Request, admin: SupabaseClient): Promise<st
   const { data } = await admin.auth.getUser(token);
   return data.user?.id ?? null;
 }
+
+/**
+ * Validate a client-supplied redirect URL against an allowlist so it can't be
+ * used as an open redirect after Stripe checkout / Connect onboarding. Permits
+ * the app's own origins and the `sif://` mobile scheme; otherwise returns the
+ * trusted fallback.
+ */
+export function safeRedirect(candidate: string | undefined, fallback: string): string {
+  if (!candidate) return fallback;
+  if (candidate.startsWith('sif://')) return candidate;
+  const appUrl = Deno.env.get('APP_URL') || 'https://goldensif.com';
+  const allowed = [appUrl, 'https://goldensif.com', 'https://www.goldensif.com'];
+  try {
+    const origin = new URL(candidate).origin;
+    const ok = allowed.some((a) => {
+      try {
+        return new URL(a).origin === origin;
+      } catch {
+        return false;
+      }
+    });
+    return ok ? candidate : fallback;
+  } catch {
+    return fallback;
+  }
+}

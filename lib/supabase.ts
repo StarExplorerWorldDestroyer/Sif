@@ -1,13 +1,16 @@
 import 'react-native-url-polyfill/auto';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 /**
  * Storage adapter for the auth session.
  *
- * - Native (iOS/Android): AsyncStorage.
+ * - Native (iOS/Android): expo-secure-store, so the access/refresh tokens live
+ *   in the iOS Keychain / Android Keystore rather than plaintext AsyncStorage.
+ *   (Note: Android SecureStore values are capped ~2KB; revisit with a chunked/
+ *   encrypted adapter when Android ships.)
  * - Web: localStorage, but guarded so it doesn't crash during the static
  *   web build (which runs in Node, where `window` doesn't exist).
  */
@@ -24,7 +27,13 @@ const webStorage = {
   },
 };
 
-const authStorage = Platform.OS === 'web' ? webStorage : AsyncStorage;
+const secureStorage = {
+  getItem: (key: string) => SecureStore.getItemAsync(key),
+  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
+  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+};
+
+const authStorage = Platform.OS === 'web' ? webStorage : secureStorage;
 
 /**
  * Supabase connection details.

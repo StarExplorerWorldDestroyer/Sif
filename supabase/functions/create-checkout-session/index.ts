@@ -8,7 +8,7 @@
 // Deploy:  supabase functions deploy create-checkout-session
 // Secrets: STRIPE_SECRET_KEY, optional PLATFORM_FEE_BPS (basis points, e.g. 1000 = 10%)
 
-import { corsHeaders, getAdmin, getStripe, getUserId, json } from '../_shared/util.ts';
+import { corsHeaders, getAdmin, getStripe, getUserId, json, safeRedirect } from '../_shared/util.ts';
 
 type Kind = 'deposit' | 'balance' | 'full';
 
@@ -97,8 +97,8 @@ Deno.serve(async (req) => {
       ...(applicationFee > 0 ? { application_fee_amount: applicationFee } : {}),
       transfer_data: { destination: acct.account_id },
     },
-    success_url: body.successUrl || `${appUrl}/bookings?paid=1`,
-    cancel_url: body.cancelUrl || `${appUrl}/bookings`,
+    success_url: safeRedirect(body.successUrl, `${appUrl}/bookings?paid=1`),
+    cancel_url: safeRedirect(body.cancelUrl, `${appUrl}/bookings`),
     metadata: {
       booking_id: booking.id,
       payer_id: booking.client_id,
