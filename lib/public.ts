@@ -35,7 +35,7 @@ export async function searchUsers(query: string): Promise<UserSearchResult[]> {
 }
 
 /** A minimal card for a username, even if the profile is private. */
-export async function fetchProfileCard(username: string): Promise<UserSearchResult | null> {
+async function fetchProfileCard(username: string): Promise<UserSearchResult | null> {
   const { data } = await supabase.rpc('profile_card', { p_username: username });
   const row = Array.isArray(data) ? data[0] : data;
   return row ? rpcToCard(row) : null;
@@ -115,16 +115,6 @@ async function withAuthors(postRows: any[]): Promise<PublicPost[]> {
       commentCount: commentCounts.get(p.id) ?? 0,
       likedByMe: likedByMe.has(p.id),
     }));
-}
-
-/** A public profile by username (only returns viewable profiles via RLS). */
-export async function fetchPublicProfile(username: string): Promise<PublicProfile | null> {
-  const { data } = await supabase
-    .from('profiles')
-    .select('id, username, display_name, bio, avatar_url, instagram, website, privacy, is_stylist')
-    .eq('username', username)
-    .maybeSingle();
-  return data ? rowToPublicProfile(data) : null;
 }
 
 /** Follower (people following them) and following counts for a user. */

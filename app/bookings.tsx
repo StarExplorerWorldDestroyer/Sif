@@ -20,6 +20,7 @@ import { StarPicker, StarRating } from '@/components/ui/stars';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { cancelBooking, fetchMyBookings, updateBookingStatus } from '@/lib/bookings';
+import { formatDateTime } from '@/lib/format';
 import { getOrCreateConversation } from '@/lib/messages';
 import { markPaidManually } from '@/lib/payments';
 import { fetchMyReviewsByBooking, submitReview } from '@/lib/reviews';
@@ -50,13 +51,6 @@ const STATUS_COLOR: Record<BookingStatus, string> = {
   cancelled: Palette.textDim,
   completed: Palette.accent,
 };
-
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  const date = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  return `${date} · ${time}`;
-}
 
 export default function BookingsScreen() {
   const router = useRouter();
@@ -482,7 +476,7 @@ function BookingCard({
             {name}
           </Txt>
           <Txt variant="caption" color={Palette.textMuted}>
-            {role === 'stylist' ? 'Client' : 'Stylist'} · {formatWhen(booking.startsAt)}
+            {role === 'stylist' ? 'Client' : 'Stylist'} · {formatDateTime(booking.startsAt)}
           </Txt>
         </View>
         <Txt variant="caption" color={STATUS_COLOR[status]} style={styles.status}>

@@ -65,24 +65,6 @@ export const FontSize = {
 } as const;
 
 /**
- * Navigation theme colors. The app is dark-only, so light mirrors dark
- * to avoid any flash of a light theme on slower devices.
- */
-const darkColors = {
-  text: Palette.text,
-  background: Palette.black,
-  tint: Palette.accent,
-  icon: Palette.textMuted,
-  tabIconDefault: Palette.textMuted,
-  tabIconSelected: Palette.accent,
-};
-
-export const Colors = {
-  light: darkColors,
-  dark: darkColors,
-};
-
-/**
  * Orange "hologram" glow for views (buttons, FABs, badges). The native shadow
  * props are converted to a CSS box-shadow on web by React Native Web, so this
  * one object works on every platform.

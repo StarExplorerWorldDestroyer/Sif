@@ -2,24 +2,7 @@ import { PAYMENTS_PROVIDER } from '@/constants/payments';
 import { getPaymentProvider } from '@/lib/payments/provider';
 import { startBookingCheckout } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
-import type { Booking, Payment, PaymentKind, PaymentMethod } from '@/types';
-
-function rowToPayment(row: any): Payment {
-  return {
-    id: row.id,
-    bookingId: row.booking_id,
-    payerId: row.payer_id,
-    payeeId: row.payee_id,
-    amount: Number(row.amount ?? 0),
-    currency: row.currency ?? 'USD',
-    kind: row.kind as PaymentKind,
-    method: row.method as PaymentMethod,
-    status: row.status,
-    provider: row.provider ?? 'mock',
-    providerRef: row.provider_ref ?? '',
-    createdAt: row.created_at,
-  };
-}
+import type { Booking, PaymentKind, PaymentMethod } from '@/types';
 
 /** Total a stylist has collected via booking payments (all time). */
 export async function fetchStylistCollected(stylistId: string): Promise<number> {
@@ -29,16 +12,6 @@ export async function fetchStylistCollected(stylistId: string): Promise<number> 
     .eq('payee_id', stylistId)
     .eq('status', 'succeeded');
   return round2((data ?? []).reduce((sum: number, r: any) => sum + Number(r.amount ?? 0), 0));
-}
-
-/** Payments recorded against a booking, newest first. */
-export async function listBookingPayments(bookingId: string): Promise<Payment[]> {
-  const { data } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('booking_id', bookingId)
-    .order('created_at', { ascending: false });
-  return (data ?? []).map(rowToPayment);
 }
 
 /** Amount still owed for a given payment kind on a booking. */

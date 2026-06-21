@@ -1,16 +1,17 @@
-import { AppImage as Image } from '@/components/ui/app-image';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Txt } from '@/components/ui/text';
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { UserResultRow } from '@/components/ui/user-result-row';
+import { UserSearchBox } from '@/components/ui/user-search-box';
+import { Palette, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { useUserSearch } from '@/hooks/use-user-search';
 import { getOrCreateConversation } from '@/lib/messages';
-import { searchUsers } from '@/lib/public';
 import { useAuth } from '@/store/auth';
 import type { UserSearchResult } from '@/types';
 
@@ -19,28 +20,10 @@ export default function NewMessageScreen() {
   const centered = useCenteredContent(680);
   const { user } = useAuth();
 
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<UserSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
+  const { query, setQuery, results, searching, active: searchActive, clear } = useUserSearch({
+    excludeId: user?.id,
+  });
   const [starting, setStarting] = useState(false);
-
-  const searchActive = query.trim().length >= 2;
-
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setResults([]);
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    const t = setTimeout(async () => {
-      const found = await searchUsers(q);
-      setResults(found.filter((u) => u.id !== user?.id));
-      setSearching(false);
-    }, 250);
-    return () => clearTimeout(t);
-  }, [query, user?.id]);
 
   const start = async (other: UserSearchResult) => {
     if (starting) return;
@@ -62,24 +45,7 @@ export default function NewMessageScreen() {
       </View>
 
       <View style={[styles.searchWrap, centered]}>
-        <View style={styles.searchBox}>
-          <IconSymbol name="person.fill" size={16} color={Palette.textMuted} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search people by name or @username"
-            placeholderTextColor={Palette.textDim}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoFocus
-            style={styles.searchInput}
-          />
-          {query.length > 0 ? (
-            <Pressable onPress={() => setQuery('')} hitSlop={8}>
-              <IconSymbol name="xmark" size={16} color={Palette.textMuted} />
-            </Pressable>
-          ) : null}
-        </View>
+        <UserSearchBox value={query} onChangeText={setQuery} onClear={clear} autoFocus />
       </View>
 
       {starting ? (
@@ -107,35 +73,11 @@ export default function NewMessageScreen() {
             </Txt>
           ) : (
             results.map((u) => (
-              <Pressable key={u.id} style={styles.row} onPress={() => start(u)}>
-                {u.avatarUrl ? (
-                  <Image source={{ uri: u.avatarUrl }} style={styles.avatar} contentFit="cover" />
-                ) : (
-                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                    <IconSymbol name="person.fill" size={18} color={Palette.textMuted} />
-                  </View>
-                )}
-                <View style={{ flex: 1 }}>
-                  <View style={styles.nameRow}>
-                    <Txt variant="body" numberOfLines={1}>
-                      {u.displayName || u.username || 'Sif user'}
-                    </Txt>
-                    {u.isStylist ? (
-                      <View style={styles.stylistBadge}>
-                        <Txt variant="caption" color={Palette.black}>
-                          Stylist
-                        </Txt>
-                      </View>
-                    ) : null}
-                  </View>
-                  {u.username ? (
-                    <Txt variant="caption" color={Palette.textMuted}>
-                      @{u.username}
-                      {u.privacy !== 'public' ? ' · private' : ''}
-                    </Txt>
-                  ) : null}
-                </View>
-                <IconSymbol name="bubble.right" size={18} color={Palette.textDim} />
+              <Pressable key={u.id} onPress={() => start(u)}>
+                <UserResultRow
+                  user={u}
+                  trailing={<IconSymbol name="bubble.right" size={18} color={Palette.textDim} />}
+                />
               </Pressable>
             ))
           )}
@@ -156,35 +98,6 @@ const styles = StyleSheet.create({
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: Spacing.xxl },
   searchWrap: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Palette.border,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  searchInput: { flex: 1, color: Palette.text, fontSize: 15, paddingVertical: 2 },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxl },
   emptyText: { textAlign: 'center', paddingTop: Spacing.xl, color: Palette.textMuted },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Palette.border,
-  },
-  avatar: { width: 48, height: 48, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt },
-  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  stylistBadge: {
-    backgroundColor: Palette.accent,
-    borderRadius: Radius.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-  },
 });
