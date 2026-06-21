@@ -10,15 +10,22 @@ export type ConnectStatus = {
 
 /** Pull an { error } message out of a non-2xx edge-function response. */
 async function fnError(error: unknown, fallback: string): Promise<string> {
-  try {
-    const ctx = (error as { context?: { json?: () => Promise<{ error?: string }> } }).context;
-    if (ctx?.json) {
-      const j = await ctx.json();
-      if (j?.error) return j.error;
+  const ctx = (error as { context?: Response }).context;
+  if (ctx && typeof ctx.text === 'function') {
+    try {
+      const text = await ctx.text();
+      try {
+        const j = JSON.parse(text);
+        if (j?.error) return j.error;
+      } catch {
+        // not JSON
+      }
+      if (text) return text.slice(0, 200);
+    } catch {
+      // fall through
     }
-  } catch {
-    // fall through
   }
+  if (error instanceof Error && error.message) return error.message;
   return fallback;
 }
 
