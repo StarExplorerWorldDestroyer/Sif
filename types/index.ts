@@ -183,13 +183,59 @@ export type AvailabilityWindow = {
   endMin: number;
 };
 
+/** How a stylist's deposit is calculated. */
+export type DepositType = 'percent' | 'flat';
+
 /** A stylist's booking configuration. */
 export type BookingSettings = {
   slotMinutes: number;
   acceptsBookings: boolean;
+  /** When false, clients never see anything about a deposit. */
+  depositEnabled: boolean;
+  depositType: DepositType;
+  /** Percent (0–100) or flat amount, per `depositType`. */
+  depositValue: number;
+  /** Default prep/cleanup buffers (minutes) applied when a service has none. */
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
+};
+
+/** A single offering on a stylist's menu. */
+export type StylistService = {
+  id: string;
+  stylistId: string;
+  name: string;
+  description: string;
+  durationMinutes: number;
+  price: number;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
+  active: boolean;
+  sortOrder: number;
 };
 
 export type BookingStatus = 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'completed';
+
+/** Payment state of a booking, derived from its succeeded payments. */
+export type PaymentStatus = 'unpaid' | 'deposit_paid' | 'paid' | 'refunded';
+export type PaymentKind = 'deposit' | 'balance' | 'full';
+export type PaymentMethod = 'app' | 'cash' | 'other';
+
+/** A single transaction recorded against a booking. */
+export type Payment = {
+  id: string;
+  bookingId: string;
+  payerId: string;
+  payeeId: string;
+  amount: number;
+  currency: string;
+  kind: PaymentKind;
+  method: PaymentMethod;
+  status: 'succeeded' | 'pending' | 'failed' | 'refunded';
+  provider: string;
+  providerRef: string;
+  createdAt: string;
+};
 
 /** A booking between a client and a stylist, with the other party resolved. */
 export type Booking = {
@@ -203,6 +249,15 @@ export type Booking = {
   cancelReason: string;
   /** What the stylist charged (0 when unset). Used for earnings. */
   price: number;
+  /** Linked service, if the client booked from the stylist's menu. */
+  serviceId: string | null;
+  /** Service name snapshot for display (empty when none). */
+  serviceName: string;
+  /** Deposit required for this booking (0 when none). */
+  depositAmount: number;
+  /** Total successfully paid so far. */
+  amountPaid: number;
+  paymentStatus: PaymentStatus;
   createdAt: string;
   /** The viewer's role in this booking. */
   role: 'client' | 'stylist';

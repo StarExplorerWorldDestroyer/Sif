@@ -57,6 +57,10 @@ const MAPPING = {
   'minus': 'remove',
   'square.and.pencil': 'edit-note',
   'book': 'auto-stories',
+  'creditcard': 'credit-card',
+  'creditcard.fill': 'credit-card',
+  'dollarsign.circle': 'attach-money',
+  'banknote': 'payments',
 } as IconMapping;
 
 /**

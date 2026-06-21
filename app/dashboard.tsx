@@ -13,6 +13,7 @@ import { useMoney } from '@/hooks/use-money';
 import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
 import { updateBookingStatus } from '@/lib/bookings';
 import { earningsCsv, exportCsv } from '@/lib/export';
+import { fetchStylistCollected } from '@/lib/payments';
 import {
   cutsInRange,
   DATE_RANGES,
@@ -52,13 +53,18 @@ export default function DashboardScreen() {
   const { profile } = useProfile();
 
   const [data, setData] = useState<StylistDashboard | null>(null);
+  const [collected, setCollected] = useState(0);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<DateRange>('month');
 
   const load = useCallback(async () => {
     if (!user) return;
-    const d = await fetchStylistDashboard(user.id);
+    const [d, c] = await Promise.all([
+      fetchStylistDashboard(user.id),
+      fetchStylistCollected(user.id),
+    ]);
     setData(d);
+    setCollected(c);
     setLoading(false);
   }, [user]);
 
@@ -134,6 +140,9 @@ export default function DashboardScreen() {
             <StatBox label="Upcoming" value={`${data.upcoming.length}`} sub="confirmed" />
             <StatBox label="Cuts" value={`${data.cutsAllTime}`} sub="all time" />
             <StatBox label="Earned" value={money(data.earnedAllTime)} sub="all time" />
+            {collected > 0 ? (
+              <StatBox label="Collected" value={money(collected)} sub="via bookings" />
+            ) : null}
           </View>
 
           {/* Range selector */}
@@ -429,6 +438,7 @@ export default function DashboardScreen() {
             {/* Manage */}
             <Section title="Manage" style={half}>
               <ActionRow icon="calendar" label="Availability & hours" onPress={() => router.push('/availability')} />
+              <ActionRow icon="scissors" label="Services & pricing" onPress={() => router.push('/services')} />
               <ActionRow icon="person.2.fill" label="All bookings" onPress={() => router.push('/bookings')} />
               <ActionRow icon="scissors" label="Create a cut for a client" onPress={() => router.push('/add')} />
               <ActionRow icon="pencil" label="Edit profile" onPress={() => router.push('/profile/edit')} />

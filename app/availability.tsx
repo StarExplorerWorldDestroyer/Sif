@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Switch,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,9 +18,11 @@ import { Palette, Radius, Spacing } from '@/constants/theme';
 import { fetchAvailability, fetchBookingSettings, saveAvailability, saveBookingSettings } from '@/lib/bookings';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useAuth } from '@/store/auth';
+import type { DepositType } from '@/types';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const SLOT_OPTIONS = [15, 30, 45, 60, 90];
+const BUFFER_OPTIONS = [0, 5, 10, 15, 20, 30];
 
 // Selectable times: 6:00 AM → 10:00 PM in 30-minute steps.
 const TIME_OPTIONS = Array.from({ length: (22 - 6) * 2 + 1 }, (_, i) => 360 + i * 30);
@@ -43,6 +46,11 @@ export default function AvailabilityScreen() {
   const [saving, setSaving] = useState(false);
   const [slotMinutes, setSlotMinutes] = useState(60);
   const [acceptsBookings, setAcceptsBookings] = useState(true);
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [depositType, setDepositType] = useState<DepositType>('percent');
+  const [depositText, setDepositText] = useState('');
+  const [bufferBefore, setBufferBefore] = useState(0);
+  const [bufferAfter, setBufferAfter] = useState(0);
   const [days, setDays] = useState<DayState[]>(
     DAYS.map(() => ({ open: false, startMin: 540, endMin: 1020 })),
   );
@@ -59,6 +67,11 @@ export default function AvailabilityScreen() {
       if (!active) return;
       setSlotMinutes(settings.slotMinutes);
       setAcceptsBookings(settings.acceptsBookings);
+      setDepositEnabled(settings.depositEnabled);
+      setDepositType(settings.depositType);
+      setDepositText(settings.depositValue ? String(settings.depositValue) : '');
+      setBufferBefore(settings.bufferBeforeMinutes);
+      setBufferAfter(settings.bufferAfterMinutes);
       setDays((prev) =>
         prev.map((d, weekday) => {
           const w = windows.find((win) => win.weekday === weekday);
@@ -80,7 +93,15 @@ export default function AvailabilityScreen() {
       .map(({ weekday, startMin, endMin }) => ({ weekday, startMin, endMin }));
     await Promise.all([
       saveAvailability(windows),
-      saveBookingSettings({ slotMinutes, acceptsBookings }),
+      saveBookingSettings({
+        slotMinutes,
+        acceptsBookings,
+        depositEnabled,
+        depositType,
+        depositValue: Math.max(0, Number(depositText) || 0),
+        bufferBeforeMinutes: bufferBefore,
+        bufferAfterMinutes: bufferAfter,
+      }),
     ]);
     setSaving(false);
     router.back();
@@ -127,7 +148,10 @@ export default function AvailabilityScreen() {
             <View style={styles.divider} />
 
             <Txt variant="label" style={styles.rowLabel}>
-              Appointment length
+              Default appointment length
+            </Txt>
+            <Txt variant="caption" color={Palette.textMuted} style={{ marginBottom: Spacing.sm }}>
+              Used when you haven’t set up services.
             </Txt>
             <View style={styles.pillRow}>
               {SLOT_OPTIONS.map((m) => (
@@ -137,6 +161,116 @@ export default function AvailabilityScreen() {
                   style={[styles.pill, m === slotMinutes && styles.pillActive]}>
                   <Txt variant="caption" color={m === slotMinutes ? Palette.black : Palette.textMuted}>
                     {m} min
+                  </Txt>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <Pressable
+            style={styles.linkCard}
+            onPress={() => router.push('/services')}
+            accessibilityRole="button"
+            accessibilityLabel="Manage services">
+            <IconSymbol name="scissors" size={20} color={Palette.accent} />
+            <View style={{ flex: 1 }}>
+              <Txt variant="body">Services & pricing</Txt>
+              <Txt variant="caption" color={Palette.textMuted}>
+                Set what you offer, how long it takes, and the price.
+              </Txt>
+            </View>
+            <IconSymbol name="chevron.right" size={20} color={Palette.textMuted} />
+          </Pressable>
+
+          <Txt variant="label" color={Palette.textMuted} style={styles.sectionTitle}>
+            DEPOSIT
+          </Txt>
+          <View style={styles.card}>
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <Txt variant="body">Require a deposit</Txt>
+                <Txt variant="caption">When off, clients never see a deposit.</Txt>
+              </View>
+              <Switch
+                value={depositEnabled}
+                onValueChange={setDepositEnabled}
+                trackColor={{ true: Palette.accent, false: Palette.surfaceAlt }}
+                thumbColor={Palette.text}
+              />
+            </View>
+
+            {depositEnabled ? (
+              <>
+                <View style={styles.divider} />
+                <Txt variant="label" style={styles.rowLabel}>
+                  Deposit type
+                </Txt>
+                <View style={styles.pillRow}>
+                  {(['percent', 'flat'] as DepositType[]).map((t) => (
+                    <Pressable
+                      key={t}
+                      onPress={() => setDepositType(t)}
+                      style={[styles.pill, t === depositType && styles.pillActive]}>
+                      <Txt variant="caption" color={t === depositType ? Palette.black : Palette.textMuted}>
+                        {t === 'percent' ? 'Percentage' : 'Flat amount'}
+                      </Txt>
+                    </Pressable>
+                  ))}
+                </View>
+                <Txt variant="label" style={styles.rowLabel}>
+                  {depositType === 'percent' ? 'Percent of service price' : 'Amount per booking'}
+                </Txt>
+                <View style={styles.depositInputRow}>
+                  <TextInput
+                    value={depositText}
+                    onChangeText={setDepositText}
+                    placeholder="0"
+                    placeholderTextColor={Palette.textDim}
+                    keyboardType="decimal-pad"
+                    style={styles.depositInput}
+                  />
+                  <Txt variant="body" color={Palette.textMuted}>
+                    {depositType === 'percent' ? '%' : 'per booking'}
+                  </Txt>
+                </View>
+              </>
+            ) : null}
+          </View>
+
+          <Txt variant="label" color={Palette.textMuted} style={styles.sectionTitle}>
+            DEFAULT BUFFERS
+          </Txt>
+          <View style={styles.card}>
+            <Txt variant="caption" color={Palette.textMuted} style={{ marginBottom: Spacing.md }}>
+              Padding around appointments so you’re never booked back-to-back. Services can override
+              these.
+            </Txt>
+            <Txt variant="label" style={styles.rowLabel}>
+              Before
+            </Txt>
+            <View style={styles.pillRow}>
+              {BUFFER_OPTIONS.map((m) => (
+                <Pressable
+                  key={m}
+                  onPress={() => setBufferBefore(m)}
+                  style={[styles.pill, m === bufferBefore && styles.pillActive]}>
+                  <Txt variant="caption" color={m === bufferBefore ? Palette.black : Palette.textMuted}>
+                    {m === 0 ? 'None' : `${m}m`}
+                  </Txt>
+                </Pressable>
+              ))}
+            </View>
+            <Txt variant="label" style={styles.rowLabel}>
+              After
+            </Txt>
+            <View style={styles.pillRow}>
+              {BUFFER_OPTIONS.map((m) => (
+                <Pressable
+                  key={m}
+                  onPress={() => setBufferAfter(m)}
+                  style={[styles.pill, m === bufferAfter && styles.pillActive]}>
+                  <Txt variant="caption" color={m === bufferAfter ? Palette.black : Palette.textMuted}>
+                    {m === 0 ? 'None' : `${m}m`}
                   </Txt>
                 </Pressable>
               ))}
@@ -251,6 +385,27 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   sectionTitle: { marginTop: Spacing.lg, marginBottom: Spacing.sm, letterSpacing: 1 },
+  linkCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.border,
+    padding: Spacing.lg,
+    marginTop: Spacing.lg,
+  },
+  depositInputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  depositInput: {
+    flex: 1,
+    backgroundColor: Palette.surfaceAlt,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    color: Palette.text,
+    fontSize: 16,
+  },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   rowLabel: { marginBottom: Spacing.sm },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },

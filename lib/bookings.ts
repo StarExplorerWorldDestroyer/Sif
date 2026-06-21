@@ -45,12 +45,19 @@ export async function fetchStylistCard(stylistId: string): Promise<StylistCard |
 export async function fetchBookingSettings(stylistId: string): Promise<BookingSettings> {
   const { data } = await supabase
     .from('stylist_booking_settings')
-    .select('slot_minutes, accepts_bookings')
+    .select(
+      'slot_minutes, accepts_bookings, deposit_enabled, deposit_type, deposit_value, buffer_before_minutes, buffer_after_minutes',
+    )
     .eq('stylist_id', stylistId)
     .maybeSingle();
   return {
     slotMinutes: data?.slot_minutes ?? 60,
     acceptsBookings: data?.accepts_bookings ?? true,
+    depositEnabled: data?.deposit_enabled ?? false,
+    depositType: (data?.deposit_type as BookingSettings['depositType']) ?? 'percent',
+    depositValue: Number(data?.deposit_value ?? 0),
+    bufferBeforeMinutes: data?.buffer_before_minutes ?? 0,
+    bufferAfterMinutes: data?.buffer_after_minutes ?? 0,
   };
 }
 
@@ -63,10 +70,25 @@ export async function saveBookingSettings(settings: BookingSettings): Promise<vo
       stylist_id: uid,
       slot_minutes: settings.slotMinutes,
       accepts_bookings: settings.acceptsBookings,
+      deposit_enabled: settings.depositEnabled,
+      deposit_type: settings.depositType,
+      deposit_value: settings.depositValue,
+      buffer_before_minutes: settings.bufferBeforeMinutes,
+      buffer_after_minutes: settings.bufferAfterMinutes,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'stylist_id' },
   );
+}
+
+/** Deposit owed for a price under a stylist's policy (0 when disabled). */
+export function computeDeposit(settings: BookingSettings, price: number): number {
+  if (!settings.depositEnabled || price <= 0) return 0;
+  const raw =
+    settings.depositType === 'percent'
+      ? (price * settings.depositValue) / 100
+      : settings.depositValue;
+  return Math.max(0, Math.min(price, Math.round(raw * 100) / 100));
 }
 
 export async function fetchAvailability(stylistId: string): Promise<AvailabilityWindow[]> {
@@ -112,72 +134,114 @@ function minutesToLabel(min: number): string {
   return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
 }
 
+/** Granularity (minutes) of candidate booking start times. */
+export const SLOT_STEP = 15;
+
+/** A blocked [start, end] window in epoch ms (booking time + its buffers). */
+export type BusyInterval = { start: number; end: number };
+
 /**
- * Compute bookable slots for a local calendar date from a stylist's weekly
- * availability, excluding already-taken starts and times in the past.
+ * Compute bookable slots for a local calendar date. Candidate start times step
+ * every `SLOT_STEP` minutes; a slot is taken if the appointment (plus its
+ * before/after buffers) would overlap an existing booking's blocked window, run
+ * past the availability window, or sit in the past.
  */
 export function computeDaySlots(params: {
   windows: AvailabilityWindow[];
   dateISO: string; // yyyy-mm-dd (local)
-  slotMinutes: number;
-  takenEpochs: Set<number>;
+  durationMinutes: number;
+  bufferBeforeMinutes?: number;
+  bufferAfterMinutes?: number;
+  busy: BusyInterval[];
+  stepMinutes?: number;
   now?: Date;
 }): BookingSlot[] {
-  const { windows, dateISO, slotMinutes, takenEpochs } = params;
+  const { windows, dateISO, durationMinutes, busy } = params;
+  const bufferBefore = params.bufferBeforeMinutes ?? 0;
+  const bufferAfter = params.bufferAfterMinutes ?? 0;
+  const step = params.stepMinutes ?? SLOT_STEP;
   const now = params.now ?? new Date();
   const [y, m, d] = dateISO.slice(0, 10).split('-').map(Number);
   if (!y || !m || !d) return [];
   const weekday = new Date(y, m - 1, d).getDay();
   const slots: BookingSlot[] = [];
   for (const w of windows.filter((win) => win.weekday === weekday)) {
-    for (let start = w.startMin; start + slotMinutes <= w.endMin; start += slotMinutes) {
+    for (let start = w.startMin; start + durationMinutes <= w.endMin; start += step) {
       const dt = new Date(y, m - 1, d, Math.floor(start / 60), start % 60, 0, 0);
-      const epoch = dt.getTime();
+      const apptStart = dt.getTime();
+      const apptEnd = apptStart + durationMinutes * 60_000;
+      const blockStart = apptStart - bufferBefore * 60_000;
+      const blockEnd = apptEnd + bufferAfter * 60_000;
+      const overlaps = busy.some((b) => blockStart < b.end && b.start < blockEnd);
       slots.push({
         iso: dt.toISOString(),
         label: minutesToLabel(start),
-        taken: takenEpochs.has(epoch) || epoch <= now.getTime(),
+        taken: overlaps || apptStart <= now.getTime(),
       });
     }
   }
   return slots.sort((a, b) => a.iso.localeCompare(b.iso));
 }
 
-/** Active (pending/confirmed) booking start epochs for a stylist on a date. */
-export async function fetchTakenSlots(stylistId: string, dateISO: string): Promise<Set<number>> {
+/**
+ * Active (pending/confirmed) blocked intervals for a stylist around a date,
+ * each expanded by that booking's own before/after buffers.
+ */
+export async function fetchBusyIntervals(
+  stylistId: string,
+  dateISO: string,
+): Promise<BusyInterval[]> {
   const [y, m, d] = dateISO.slice(0, 10).split('-').map(Number);
-  if (!y || !m || !d) return new Set();
-  const dayStart = new Date(y, m - 1, d, 0, 0, 0, 0);
-  const dayEnd = new Date(y, m - 1, d + 1, 0, 0, 0, 0);
+  if (!y || !m || !d) return [];
+  // Widen the query a day each side so long appointments/buffers that spill
+  // across midnight are still considered.
+  const from = new Date(y, m - 1, d - 1, 0, 0, 0, 0);
+  const to = new Date(y, m - 1, d + 2, 0, 0, 0, 0);
   const { data } = await supabase
     .from('bookings')
-    .select('starts_at, status')
+    .select('starts_at, duration_minutes, buffer_before_minutes, buffer_after_minutes, status')
     .eq('stylist_id', stylistId)
-    .gte('starts_at', dayStart.toISOString())
-    .lt('starts_at', dayEnd.toISOString())
+    .gte('starts_at', from.toISOString())
+    .lt('starts_at', to.toISOString())
     .in('status', ['pending', 'confirmed']);
-  return new Set((data ?? []).map((r: any) => new Date(r.starts_at).getTime()));
+  return (data ?? []).map((r: any) => {
+    const start = new Date(r.starts_at).getTime();
+    const before = (r.buffer_before_minutes ?? 0) * 60_000;
+    const after = (r.buffer_after_minutes ?? 0) * 60_000;
+    const dur = (r.duration_minutes ?? 60) * 60_000;
+    return { start: start - before, end: start + dur + after };
+  });
 }
 
 /** Create a booking request. Returns the id, or null (e.g. slot just taken). */
-export async function createBooking(
-  stylistId: string,
-  startsAtISO: string,
-  durationMinutes: number,
-  note: string,
-): Promise<{ id: string | null; error: string | null }> {
+export async function createBooking(params: {
+  stylistId: string;
+  startsAtISO: string;
+  durationMinutes: number;
+  note: string;
+  serviceId?: string | null;
+  price?: number;
+  depositAmount?: number;
+  bufferBeforeMinutes?: number;
+  bufferAfterMinutes?: number;
+}): Promise<{ id: string | null; error: string | null }> {
   const { data, error } = await supabase
     .from('bookings')
     .insert({
-      stylist_id: stylistId,
-      starts_at: startsAtISO,
-      duration_minutes: durationMinutes,
-      note: note.trim(),
+      stylist_id: params.stylistId,
+      starts_at: params.startsAtISO,
+      duration_minutes: params.durationMinutes,
+      note: params.note.trim(),
+      service_id: params.serviceId ?? null,
+      price: params.price ?? 0,
+      deposit_amount: params.depositAmount ?? 0,
+      buffer_before_minutes: params.bufferBeforeMinutes ?? 0,
+      buffer_after_minutes: params.bufferAfterMinutes ?? 0,
     })
     .select('id')
     .single();
   if (error) {
-    const taken = error.code === '23505';
+    const taken = error.code === '23505' || error.code === '23P01';
     return { id: null, error: taken ? 'That time was just booked. Pick another slot.' : error.message };
   }
   return { id: data.id, error: null };
@@ -213,7 +277,7 @@ export async function rescheduleBooking(
     .update({ starts_at: startsAtISO, status: 'pending', reminder_sent: false })
     .eq('id', id);
   if (error) {
-    const taken = error.code === '23505';
+    const taken = error.code === '23505' || error.code === '23P01';
     return { error: taken ? 'That time was just booked. Pick another slot.' : error.message };
   }
   return { error: null };
@@ -226,7 +290,7 @@ export async function fetchMyBookings(): Promise<Booking[]> {
   if (!uid) return [];
   const { data } = await supabase
     .from('bookings')
-    .select('*')
+    .select('*, service:stylist_services(name)')
     .or(`client_id.eq.${uid},stylist_id.eq.${uid}`)
     .order('starts_at', { ascending: true });
   const rows = data ?? [];
@@ -244,22 +308,52 @@ export async function fetchMyBookings(): Promise<Booking[]> {
     isStylist: false,
   });
 
-  return rows.map((r: any) => {
-    const role: 'client' | 'stylist' = r.client_id === uid ? 'client' : 'stylist';
-    const otherId = role === 'client' ? r.stylist_id : r.client_id;
-    return {
-      id: r.id,
-      stylistId: r.stylist_id,
-      clientId: r.client_id,
-      startsAt: r.starts_at,
-      durationMinutes: r.duration_minutes,
-      status: r.status as BookingStatus,
-      note: r.note ?? '',
-      cancelReason: r.cancel_reason ?? '',
-      price: Number(r.price ?? 0),
-      createdAt: r.created_at,
-      role,
-      other: byId.get(otherId) ?? fallback(otherId),
-    };
-  });
+  return rows.map((r: any) => rowToBooking(r, uid, byId.get(r.client_id === uid ? r.stylist_id : r.client_id) ?? fallback(r.client_id === uid ? r.stylist_id : r.client_id)));
+}
+
+function rowToBooking(r: any, uid: string, other: UserSearchResult): Booking {
+  const role: 'client' | 'stylist' = r.client_id === uid ? 'client' : 'stylist';
+  return {
+    id: r.id,
+    stylistId: r.stylist_id,
+    clientId: r.client_id,
+    startsAt: r.starts_at,
+    durationMinutes: r.duration_minutes,
+    status: r.status as BookingStatus,
+    note: r.note ?? '',
+    cancelReason: r.cancel_reason ?? '',
+    price: Number(r.price ?? 0),
+    serviceId: r.service_id ?? null,
+    serviceName: r.service?.name ?? '',
+    depositAmount: Number(r.deposit_amount ?? 0),
+    amountPaid: Number(r.amount_paid ?? 0),
+    paymentStatus: (r.payment_status as Booking['paymentStatus']) ?? 'unpaid',
+    createdAt: r.created_at,
+    role,
+    other,
+  };
+}
+
+/** A single booking the current user participates in, or null. */
+export async function fetchBooking(id: string): Promise<Booking | null> {
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth?.user?.id;
+  if (!uid) return null;
+  const { data } = await supabase
+    .from('bookings')
+    .select('*, service:stylist_services(name)')
+    .eq('id', id)
+    .maybeSingle();
+  if (!data) return null;
+  const otherId = data.client_id === uid ? data.stylist_id : data.client_id;
+  const cards = await fetchCardsByIds([otherId]);
+  const other: UserSearchResult = cards[0] ?? {
+    id: otherId,
+    username: null,
+    displayName: 'Sif user',
+    avatarUrl: '',
+    privacy: 'public',
+    isStylist: false,
+  };
+  return rowToBooking(data, uid, other);
 }

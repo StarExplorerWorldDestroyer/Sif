@@ -21,10 +21,27 @@ import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { cancelBooking, fetchMyBookings, updateBookingStatus } from '@/lib/bookings';
 import { getOrCreateConversation } from '@/lib/messages';
+import { markPaidManually } from '@/lib/payments';
 import { fetchMyReviewsByBooking, submitReview } from '@/lib/reviews';
+import { useMoney } from '@/hooks/use-money';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useRefresh } from '@/hooks/use-refresh';
-import type { Booking, BookingStatus } from '@/types';
+import { useProfile } from '@/store/profile';
+import type { Booking, BookingStatus, PaymentMethod, PaymentStatus } from '@/types';
+
+const PAYMENT_LABEL: Record<PaymentStatus, string> = {
+  unpaid: 'Unpaid',
+  deposit_paid: 'Deposit paid',
+  paid: 'Paid',
+  refunded: 'Refunded',
+};
+
+const PAYMENT_COLOR: Record<PaymentStatus, string> = {
+  unpaid: Palette.textMuted,
+  deposit_paid: Palette.accent,
+  paid: Palette.success,
+  refunded: Palette.textDim,
+};
 
 const STATUS_COLOR: Record<BookingStatus, string> = {
   pending: Palette.textMuted,
@@ -44,10 +61,14 @@ function formatWhen(iso: string): string {
 export default function BookingsScreen() {
   const router = useRouter();
   const centered = useCenteredContent(640);
+  const money = useMoney();
+  const { profile } = useProfile();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
   const [cancelReasonText, setCancelReasonText] = useState('');
+  const [paidTarget, setPaidTarget] = useState<Booking | null>(null);
+  const [savingPaid, setSavingPaid] = useState(false);
   const [reviews, setReviews] = useState<Map<string, { rating: number; body: string }>>(new Map());
   const [reviewTarget, setReviewTarget] = useState<Booking | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
@@ -97,6 +118,26 @@ export default function BookingsScreen() {
       if (cid) router.push(`/messages/${cid}?other=${b.other.id}`);
     },
     [router],
+  );
+
+  const payDeposit = useCallback((b: Booking) => router.push(`/pay/${b.id}?kind=deposit`), [router]);
+  const payBalance = useCallback((b: Booking) => router.push(`/pay/${b.id}?kind=balance`), [router]);
+
+  const confirmMarkPaid = useCallback(
+    async (method: Exclude<PaymentMethod, 'app'>) => {
+      if (!paidTarget) return;
+      setSavingPaid(true);
+      const { ok, error } = await markPaidManually({
+        booking: paidTarget,
+        method,
+        currency: profile?.currency ?? 'USD',
+      });
+      setSavingPaid(false);
+      setPaidTarget(null);
+      if (!ok && error) return;
+      load();
+    },
+    [paidTarget, profile?.currency, load],
   );
 
   const confirmCancel = useCallback(async () => {
@@ -183,12 +224,16 @@ export default function BookingsScreen() {
                   key={b.id}
                   booking={b}
                   reviewedRating={reviews.get(b.id)?.rating ?? null}
+                  money={money}
                   onAct={act}
                   onCreateCut={createCut}
                   onReschedule={reschedule}
                   onCancel={setCancelTarget}
                   onReview={openReview}
                   onMessage={message}
+                  onPayDeposit={payDeposit}
+                  onPayBalance={payBalance}
+                  onMarkPaid={setPaidTarget}
                 />
               ))}
             </Section>
@@ -200,12 +245,16 @@ export default function BookingsScreen() {
                   key={b.id}
                   booking={b}
                   reviewedRating={reviews.get(b.id)?.rating ?? null}
+                  money={money}
                   onAct={act}
                   onCreateCut={createCut}
                   onReschedule={reschedule}
                   onCancel={setCancelTarget}
                   onReview={openReview}
                   onMessage={message}
+                  onPayDeposit={payDeposit}
+                  onPayBalance={payBalance}
+                  onMarkPaid={setPaidTarget}
                 />
               ))}
             </Section>
@@ -217,12 +266,16 @@ export default function BookingsScreen() {
                   key={b.id}
                   booking={b}
                   reviewedRating={reviews.get(b.id)?.rating ?? null}
+                  money={money}
                   onAct={act}
                   onCreateCut={createCut}
                   onReschedule={reschedule}
                   onCancel={setCancelTarget}
                   onReview={openReview}
                   onMessage={message}
+                  onPayDeposit={payDeposit}
+                  onPayBalance={payBalance}
+                  onMarkPaid={setPaidTarget}
                 />
               ))}
             </Section>
@@ -309,6 +362,41 @@ export default function BookingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={!!paidTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPaidTarget(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setPaidTarget(null)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Txt variant="heading">Mark as paid</Txt>
+            <Txt variant="label" color={Palette.textMuted} style={{ marginTop: Spacing.xs }}>
+              {paidTarget
+                ? `Record that the client paid ${money(Math.max(0, paidTarget.price - paidTarget.amountPaid))} outside the app.`
+                : ''}
+            </Txt>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.btn, savingPaid && { opacity: 0.6 }]}
+                disabled={savingPaid}
+                onPress={() => confirmMarkPaid('cash')}>
+                <Txt variant="label" color={Palette.text}>
+                  Cash
+                </Txt>
+              </Pressable>
+              <Pressable
+                style={[styles.btn, styles.btnPrimary, savingPaid && { opacity: 0.6 }]}
+                disabled={savingPaid}
+                onPress={() => confirmMarkPaid('other')}>
+                <Txt variant="label" color={Palette.black} style={{ fontWeight: '600' }}>
+                  Other
+                </Txt>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -327,21 +415,29 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function BookingCard({
   booking,
   reviewedRating,
+  money,
   onAct,
   onCreateCut,
   onReschedule,
   onCancel,
   onReview,
   onMessage,
+  onPayDeposit,
+  onPayBalance,
+  onMarkPaid,
 }: {
   booking: Booking;
   reviewedRating: number | null;
+  money: (amount: number) => string;
   onAct: (id: string, status: BookingStatus) => void;
   onCreateCut: (booking: Booking) => void;
   onReschedule: (booking: Booking) => void;
   onCancel: (booking: Booking) => void;
   onReview: (booking: Booking) => void;
   onMessage: (booking: Booking) => void;
+  onPayDeposit: (booking: Booking) => void;
+  onPayBalance: (booking: Booking) => void;
+  onMarkPaid: (booking: Booking) => void;
 }) {
   const { other, role, status } = booking;
   const name = other.displayName || (other.username ? `@${other.username}` : 'Sif user');
@@ -357,6 +453,19 @@ function BookingCard({
     isFuture && ((role === 'client' && active) || (role === 'stylist' && status === 'confirmed'));
   // Clients can review a completed appointment (and edit it afterwards).
   const canReview = role === 'client' && status === 'completed';
+
+  // Payments: balance/full collection happens once the stylist has confirmed
+  // (or after the appointment). Deposits are collected at request time.
+  const payable = booking.price > 0 && (status === 'confirmed' || status === 'completed');
+  const fullyPaid = booking.paymentStatus === 'paid';
+  const balanceDue = Math.max(0, booking.price - booking.amountPaid);
+  const depositPending = booking.depositAmount > 0 && booking.paymentStatus === 'unpaid';
+  const canPayDeposit = role === 'client' && active && depositPending;
+  // Pay the rest (or the full amount when there's no deposit) once it's live.
+  const canPayBalance =
+    role === 'client' && payable && !fullyPaid && balanceDue > 0 && !depositPending;
+  const canMarkPaid = role === 'stylist' && payable && !fullyPaid && balanceDue > 0;
+  const showPayment = booking.price > 0 || booking.depositAmount > 0;
 
   return (
     <View style={styles.card}>
@@ -380,6 +489,23 @@ function BookingCard({
           {status}
         </Txt>
       </View>
+
+      {showPayment ? (
+        <View style={styles.payRow}>
+          <View style={[styles.payBadge, { borderColor: PAYMENT_COLOR[booking.paymentStatus] }]}>
+            <Txt variant="caption" color={PAYMENT_COLOR[booking.paymentStatus]}>
+              {PAYMENT_LABEL[booking.paymentStatus]}
+            </Txt>
+          </View>
+          {booking.price > 0 ? (
+            <Txt variant="caption" color={Palette.textMuted}>
+              {fullyPaid
+                ? money(booking.price)
+                : `${money(booking.amountPaid)} of ${money(booking.price)}`}
+            </Txt>
+          ) : null}
+        </View>
+      ) : null}
 
       {booking.note ? (
         <Txt variant="label" color={Palette.textMuted} style={styles.note}>
@@ -408,6 +534,27 @@ function BookingCard({
               Message
             </Txt>
           </Pressable>
+          {canPayDeposit ? (
+            <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => onPayDeposit(booking)}>
+              <Txt variant="label" color={Palette.black} style={{ fontWeight: '600' }}>
+                Pay {money(Math.max(0, booking.depositAmount - booking.amountPaid))} deposit
+              </Txt>
+            </Pressable>
+          ) : null}
+          {canPayBalance ? (
+            <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => onPayBalance(booking)}>
+              <Txt variant="label" color={Palette.black} style={{ fontWeight: '600' }}>
+                Pay {money(balanceDue)}
+              </Txt>
+            </Pressable>
+          ) : null}
+          {canMarkPaid ? (
+            <Pressable style={styles.btn} onPress={() => onMarkPaid(booking)}>
+              <Txt variant="label" color={Palette.text}>
+                Mark paid
+              </Txt>
+            </Pressable>
+          ) : null}
           {canRespond ? (
             <>
               <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => onAct(booking.id, 'confirmed')}>
@@ -480,6 +627,13 @@ const styles = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: Radius.pill, backgroundColor: Palette.surfaceAlt },
   avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   status: { textTransform: 'capitalize' },
+  payRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm },
+  payBadge: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
   note: { marginTop: Spacing.sm, fontStyle: 'italic' },
   reviewedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm },
   starsRow: { alignItems: 'center', marginTop: Spacing.lg },
