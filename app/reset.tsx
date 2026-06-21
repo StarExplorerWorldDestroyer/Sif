@@ -19,7 +19,7 @@ export default function ResetPasswordScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const canSubmit = password.length >= 6 && password === confirm && !busy;
+  const canSubmit = password.length >= 8 && password === confirm && !busy;
 
   async function submit() {
     if (!canSubmit) return;
@@ -47,7 +47,7 @@ export default function ResetPasswordScreen() {
 
           <Field
             label="New password"
-            placeholder="At least 6 characters"
+            placeholder="At least 8 characters"
             value={password}
             onChangeText={setPassword}
             secureTextEntry

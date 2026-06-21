@@ -26,7 +26,7 @@ export default function LoginScreen() {
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const canSubmit = email.includes('@') && password.length >= 6;
+  const canSubmit = email.includes('@') && password.length >= 8;
 
   async function submit() {
     if (!canSubmit || busy) return;
@@ -91,7 +91,7 @@ export default function LoginScreen() {
           />
           <Field
             label="Password"
-            placeholder="At least 6 characters"
+            placeholder="At least 8 characters"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
