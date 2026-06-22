@@ -70,9 +70,10 @@ Deno.serve(async (req) => {
 
     // ---- List the predefined hairstyle templates ----
     if (action === 'styles') {
+      // page_size is capped at 20 by the provider; larger values 400.
       const res = await fetch(
-        `${API_BASE}/s2s/v2.1/task/template/hair-transfer?page_size=40`,
-        { headers: apiHeaders() },
+        `${API_BASE}/s2s/v2.1/task/template/hair-transfer?page_size=20`,
+        { headers: apiHeaders(), signal: AbortSignal.timeout(20000) },
       );
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {

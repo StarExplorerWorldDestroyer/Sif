@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -58,17 +58,23 @@ export default function TryOnScreen() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
+  // Load the style library exactly once — guarding on a ref (not on the
+  // results length) so an empty/failed response shows the empty state instead
+  // of re-triggering the fetch forever.
+  const stylesLoadedRef = useRef(false);
+
   useEffect(() => {
     if (!user) return;
     hasTryonConsent(user.id).then(setConsent);
   }, [user]);
 
   const loadStyles = useCallback(async () => {
-    if (styles_.length || stylesLoading) return;
+    if (stylesLoadedRef.current) return;
+    stylesLoadedRef.current = true;
     setStylesLoading(true);
     setStyles(await fetchTryOnStyles());
     setStylesLoading(false);
-  }, [styles_.length, stylesLoading]);
+  }, []);
 
   useEffect(() => {
     if (consent && mode === 'library') loadStyles();
