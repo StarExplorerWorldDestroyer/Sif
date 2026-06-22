@@ -276,6 +276,16 @@ export default function SettingsScreen() {
 
           <View style={styles.divider} />
 
+          <Pressable style={styles.actionRow} onPress={() => router.push('/blocked')}>
+            <View style={{ flex: 1 }}>
+              <Txt variant="body">Blocked accounts</Txt>
+              <Txt variant="caption">Manage who you’ve blocked.</Txt>
+            </View>
+            <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+          </Pressable>
+
+          <View style={styles.divider} />
+
           <View style={styles.toggleRow}>
             <View style={{ flex: 1 }}>
               <Txt variant="body">Stylist account</Txt>

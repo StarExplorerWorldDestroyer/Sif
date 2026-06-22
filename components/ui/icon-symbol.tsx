@@ -61,6 +61,9 @@ const MAPPING = {
   'creditcard.fill': 'credit-card',
   'dollarsign.circle': 'attach-money',
   'banknote': 'payments',
+  'ellipsis': 'more-horiz',
+  'flag': 'flag',
+  'hand.raised.fill': 'block',
 } as IconMapping;
 
 /**
