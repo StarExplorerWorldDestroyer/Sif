@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ModerationMenu } from '@/components/ui/moderation-menu';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/format';
@@ -266,7 +267,16 @@ export default function PublicPostScreen() {
         <Txt variant="heading" color={Palette.accent}>
           Sif
         </Txt>
-        <View style={{ width: 26 }} />
+        {post && user && post.author.id !== user.id ? (
+          <ModerationMenu
+            userId={post.author.id}
+            username={post.author.username}
+            content={{ type: 'post', id: post.id }}
+            onBlocked={() => router.back()}
+          />
+        ) : (
+          <View style={{ width: 26 }} />
+        )}
       </View>
 
       {loading ? (

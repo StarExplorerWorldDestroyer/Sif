@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ModerationMenu } from '@/components/ui/moderation-menu';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
@@ -339,7 +340,15 @@ export default function ThreadScreen() {
             {name}
           </Txt>
         </Pressable>
-        <View style={{ width: 26 }} />
+        {other ? (
+          <ModerationMenu
+            userId={other.id}
+            username={other.username}
+            onBlocked={() => router.back()}
+          />
+        ) : (
+          <View style={{ width: 26 }} />
+        )}
       </View>
 
       <KeyboardAvoidingView
