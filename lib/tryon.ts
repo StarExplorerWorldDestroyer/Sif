@@ -7,11 +7,36 @@ import { supabase } from '@/lib/supabase';
 const BUCKET = 'tryon-photos';
 const SIGNED_TTL = 60 * 60; // 1 hour
 
-/** A predefined hairstyle the user can try on. */
+/** Hair effects backed by the YouCam API. */
+export type EffectKind = 'hairstyle' | 'color' | 'bangs' | 'extension' | 'volume' | 'wavy';
+
+/** Whether an effect picks from a template library or takes color settings. */
+export type EffectType = 'template' | 'color';
+
+export const EFFECTS: { id: EffectKind; label: string; type: EffectType }[] = [
+  { id: 'hairstyle', label: 'Style', type: 'template' },
+  { id: 'color', label: 'Color', type: 'color' },
+  { id: 'bangs', label: 'Bangs', type: 'template' },
+  { id: 'extension', label: 'Length', type: 'template' },
+  { id: 'volume', label: 'Volume', type: 'template' },
+  { id: 'wavy', label: 'Wavy', type: 'template' },
+];
+
+/** A template the user can apply (a hairstyle, bang shape, etc.). */
 export type TryOnStyle = {
   templateId: string;
   label: string;
   thumbnailUrl: string;
+};
+
+/** Hair-color settings. A preset takes priority over a custom HEX. */
+export type ColorParams = {
+  hex?: string;
+  preset?: string;
+  intensity?: number; // 0..100
+  shine?: number; // 0..100
+  pattern?: 'full' | 'ombre';
+  coloringSection?: 'top' | 'bottom';
 };
 
 /** Outcome of a try-on request. */
@@ -42,8 +67,8 @@ async function readImageBody(
 
 /**
  * Upload a selfie or reference photo to the private try-on bucket and return
- * its storage path. The Edge Function signs these paths so Perfect Corp can
- * fetch them; they're never publicly readable.
+ * its storage path. The Edge Function reads these and forwards the bytes to
+ * the provider; they're never publicly readable.
  */
 export async function uploadTryonImage(
   userId: string,
@@ -89,8 +114,8 @@ export async function grantTryonConsent(userId: string): Promise<boolean> {
   return !error;
 }
 
-/** First http(s) value on an object — used to find a thumbnail regardless of
- * which field name the provider uses (prefers image-looking URLs). */
+/** First http(s) value on an object — finds a thumbnail regardless of which
+ * field name the provider uses (prefers image-looking URLs). */
 function firstUrl(item: any): string {
   const vals = Object.values(item ?? {}).filter(
     (v): v is string => typeof v === 'string' && /^https?:\/\//.test(v),
@@ -111,20 +136,25 @@ function mapStyles(data: any): TryOnStyle[] {
     .filter((s) => s.templateId);
 }
 
-/** Fetch the predefined hairstyle library from the provider. */
-export async function fetchTryOnStyles(): Promise<TryOnStyle[]> {
+/** Fetch a page of the template library for a template-based effect. */
+export async function fetchTryOnStyles(
+  kind: EffectKind,
+  startingToken?: string,
+): Promise<{ styles: TryOnStyle[]; nextToken: string | null }> {
   const { data, error } = await supabase.functions.invoke('hairstyle-tryon', {
-    body: { action: 'styles' },
+    body: { action: 'styles', kind, startingToken },
   });
-  if (error) return [];
-  return mapStyles(data?.data);
+  if (error) return { styles: [], nextToken: null };
+  return { styles: mapStyles(data?.data), nextToken: data?.nextToken ?? null };
 }
 
 type TryOnRequest =
-  | { selfiePath: string; source: 'template'; templateId: string; styleLabel?: string }
-  | { selfiePath: string; source: 'reference'; refPath: string; styleLabel?: string };
+  | { kind: 'hairstyle'; selfiePath: string; source: 'template'; templateId: string; styleLabel?: string }
+  | { kind: 'hairstyle'; selfiePath: string; source: 'reference'; refPath: string; styleLabel?: string }
+  | { kind: 'bangs' | 'extension' | 'volume' | 'wavy'; selfiePath: string; templateId: string; styleLabel?: string }
+  | { kind: 'color'; selfiePath: string; color: ColorParams; styleLabel?: string };
 
-/** Run a try-on and resolve a signed URL for the generated image. */
+/** Run a try-on for any effect and resolve a signed URL for the result. */
 export async function requestTryOn(req: TryOnRequest): Promise<TryOnResult> {
   const { data, error } = await supabase.functions.invoke('hairstyle-tryon', {
     body: { action: 'create', ...req },
