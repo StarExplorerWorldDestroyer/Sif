@@ -89,17 +89,24 @@ export async function grantTryonConsent(userId: string): Promise<boolean> {
   return !error;
 }
 
+/** First http(s) value on an object — used to find a thumbnail regardless of
+ * which field name the provider uses (prefers image-looking URLs). */
+function firstUrl(item: any): string {
+  const vals = Object.values(item ?? {}).filter(
+    (v): v is string => typeof v === 'string' && /^https?:\/\//.test(v),
+  );
+  return vals.find((v) => /\.(jpe?g|png|webp)(\?|$)/i.test(v)) ?? vals[0] ?? '';
+}
+
 function mapStyles(data: any): TryOnStyle[] {
   const list: any[] = Array.isArray(data)
     ? data
-    : data?.templates ?? data?.results ?? data?.list ?? data?.items ?? [];
+    : data?.templates ?? data?.results ?? data?.list ?? data?.items ?? data?.result ?? [];
   return list
     .map((item: any) => ({
-      templateId: String(item?.template_id ?? item?.id ?? ''),
+      templateId: String(item?.template_id ?? item?.id ?? item?.templateId ?? ''),
       label: String(item?.name ?? item?.title ?? item?.label ?? ''),
-      thumbnailUrl: String(
-        item?.thumbnail_url ?? item?.thumbnail ?? item?.preview_url ?? item?.url ?? '',
-      ),
+      thumbnailUrl: firstUrl(item),
     }))
     .filter((s) => s.templateId);
 }

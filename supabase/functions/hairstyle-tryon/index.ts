@@ -20,7 +20,6 @@ import { corsHeaders, getAdmin, getUserId, json } from '../_shared/util.ts';
 
 const API_BASE = 'https://yce-api-01.makeupar.com';
 const BUCKET = 'tryon-photos';
-const SIGNED_TTL = 600; // 10 min — long enough for Perfect Corp to fetch the input
 const POLL_INTERVAL_MS = 1500;
 const POLL_MAX_ATTEMPTS = 40; // ~60s ceiling
 
@@ -33,10 +32,54 @@ function apiHeaders(): HeadersInit {
   };
 }
 
+function contentTypeFor(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase();
+  if (ext === 'png') return 'image/png';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'heic' || ext === 'heif') return 'image/heic';
+  return 'image/jpeg';
+}
+
+/**
+ * Upload an image stored in our private bucket directly to Perfect Corp via
+ * their File API and return the resulting file_id. This is more reliable than
+ * handing them a signed URL to fetch (which can fail with error_download_image).
+ */
 // deno-lint-ignore no-explicit-any
-async function signPath(admin: any, path: string): Promise<string | null> {
-  const { data } = await admin.storage.from(BUCKET).createSignedUrl(path, SIGNED_TTL);
-  return data?.signedUrl ?? null;
+async function uploadToProvider(admin: any, path: string): Promise<string> {
+  const { data: blob, error } = await admin.storage.from(BUCKET).download(path);
+  if (error || !blob) throw new Error('read_failed');
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const contentType =
+    blob.type && blob.type !== 'application/octet-stream' ? blob.type : contentTypeFor(path);
+  const fileName = path.split('/').pop() || 'image.jpg';
+
+  const initRes = await fetch(`${API_BASE}/s2s/v2.1/file/hair-transfer`, {
+    method: 'POST',
+    headers: apiHeaders(),
+    body: JSON.stringify({
+      files: [{ content_type: contentType, file_name: fileName, file_size: bytes.length }],
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+  const initJson = await initRes.json().catch(() => ({}));
+  const file = initJson?.data?.files?.[0];
+  const req = file?.requests?.[0];
+  if (!initRes.ok || !file?.file_id || !req?.url) {
+    console.error('provider file init failed:', initRes.status, initJson);
+    throw new Error('file_init_failed');
+  }
+  const putRes = await fetch(req.url, {
+    method: req.method ?? 'PUT',
+    headers: req.headers ?? { 'Content-Type': contentType },
+    body: bytes,
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!putRes.ok) {
+    console.error('provider file upload failed:', putRes.status);
+    throw new Error('file_put_failed');
+  }
+  return file.file_id as string;
 }
 
 Deno.serve(async (req) => {
@@ -102,16 +145,6 @@ Deno.serve(async (req) => {
     if (source === 'template' && !templateId) return json({ error: 'Missing style.' }, 400);
     if (source === 'reference' && !refPath) return json({ error: 'Missing reference photo.' }, 400);
 
-    // Selfie/reference live in a private bucket; Perfect Corp fetches them via
-    // short-lived signed URLs.
-    const srcUrl = await signPath(admin, selfiePath);
-    if (!srcUrl) return json({ error: 'Could not read selfie.' }, 400);
-    let refUrl: string | null = null;
-    if (source === 'reference') {
-      refUrl = await signPath(admin, refPath!);
-      if (!refUrl) return json({ error: 'Could not read reference photo.' }, 400);
-    }
-
     const { data: row, error: insErr } = await admin
       .from('hairstyle_tryons')
       .insert({
@@ -139,10 +172,21 @@ Deno.serve(async (req) => {
       return json({ id: tryonId, status: 'failed', error: message });
     };
 
-    // 1) Create the task.
+    // 1) Push the image(s) to Perfect Corp's File API and get file ids.
+    let srcFileId: string;
+    let refFileId: string | null = null;
+    try {
+      srcFileId = await uploadToProvider(admin, selfiePath);
+      if (source === 'reference') refFileId = await uploadToProvider(admin, refPath!);
+    } catch (e) {
+      console.error('provider upload error:', e);
+      return await fail('Could not upload your photo to the styler. Please try another photo.');
+    }
+
+    // 2) Create the task.
     const taskBody = source === 'template'
-      ? { src_file_url: srcUrl, template_id: templateId }
-      : { src_file_url: srcUrl, ref_file_url: refUrl };
+      ? { src_file_id: srcFileId, template_id: templateId }
+      : { src_file_id: srcFileId, ref_file_id: refFileId };
     const taskRes = await fetch(`${API_BASE}/s2s/v2.1/task/hair-transfer`, {
       method: 'POST',
       headers: apiHeaders(),
@@ -159,7 +203,7 @@ Deno.serve(async (req) => {
       .update({ provider_task_id: taskId, updated_at: new Date().toISOString() })
       .eq('id', tryonId);
 
-    // 2) Poll for the result.
+    // 3) Poll for the result.
     let resultUrl: string | null = null;
     for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
       await sleep(POLL_INTERVAL_MS);
@@ -179,7 +223,7 @@ Deno.serve(async (req) => {
     }
     if (!resultUrl) return await fail('This look took too long to generate. Please try again.', taskId);
 
-    // 3) Download the result and store it in our private bucket.
+    // 4) Download the result and store it in our private bucket.
     const imgRes = await fetch(resultUrl);
     if (!imgRes.ok) return await fail('Could not retrieve the generated image.', taskId);
     const bytes = new Uint8Array(await imgRes.arrayBuffer());
