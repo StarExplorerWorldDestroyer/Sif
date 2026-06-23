@@ -1,11 +1,36 @@
 import { decode } from 'base64-arraybuffer';
 import * as FileSystem from 'expo-file-system/legacy';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
 
 const BUCKET = 'tryon-photos';
 const SIGNED_TTL = 60 * 60; // 1 hour
+
+// The provider's effects cap input dimensions (bangs/wavy/length/volume at
+// 1024px on the long side, color at 1920px). A raw phone selfie is far larger,
+// which makes every effect except the lenient hairstyle one fail. Downscaling
+// to a safe long-side and re-encoding as JPEG keeps all effects happy (and
+// uploads smaller/faster). Hairstyle quality is unaffected at this size.
+const MAX_LONG_SIDE = 1024;
+
+/** Downscale (if needed) and re-encode an image to JPEG before upload. */
+async function downscaleToJpeg(uri: string, width?: number, height?: number): Promise<string> {
+  try {
+    const ctx = ImageManipulator.manipulate(uri);
+    const longSide = Math.max(width ?? 0, height ?? 0);
+    if (width && height && longSide > MAX_LONG_SIDE) {
+      const scale = MAX_LONG_SIDE / longSide;
+      ctx.resize({ width: Math.round(width * scale), height: Math.round(height * scale) });
+    }
+    const rendered = await ctx.renderAsync();
+    const out = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.9 });
+    return out.uri;
+  } catch {
+    return uri; // fall back to the original if manipulation isn't available
+  }
+}
 
 /** Hair effects backed by the YouCam API. */
 export type EffectKind = 'hairstyle' | 'color' | 'bangs' | 'extension' | 'volume' | 'wavy';
@@ -44,6 +69,8 @@ export type TryOnResult = {
   id: string | null;
   status: 'succeeded' | 'failed';
   resultUrl?: string;
+  /** Storage path of the result — feed this as the selfie of the next step to chain effects. */
+  resultPath?: string;
   error?: string;
 };
 
@@ -74,16 +101,14 @@ export async function uploadTryonImage(
   userId: string,
   kind: 'selfie' | 'ref',
   localUri: string,
+  dims?: { width?: number; height?: number },
 ): Promise<string> {
-  const ext = (localUri.split('.').pop()?.split('?')[0] || 'jpg').toLowerCase();
-  const path = `${userId}/inputs/${Date.now()}-${kind}.${ext}`;
-  const { body, contentType } = await readImageBody(
-    localUri,
-    ext === 'png' ? 'image/png' : 'image/jpeg',
-  );
+  const resizedUri = await downscaleToJpeg(localUri, dims?.width, dims?.height);
+  const path = `${userId}/inputs/${Date.now()}-${kind}.jpg`;
+  const { body, contentType } = await readImageBody(resizedUri, 'image/jpeg');
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(path, body, { contentType, upsert: true });
+    .upload(path, body, { contentType: contentType || 'image/jpeg', upsert: true });
   if (error) throw error;
   return path;
 }
@@ -164,7 +189,12 @@ export async function requestTryOn(req: TryOnRequest): Promise<TryOnResult> {
   }
   if (data.status === 'succeeded' && data.resultPath) {
     const resultUrl = await signTryonPhoto(data.resultPath);
-    return { id: data.id, status: 'succeeded', resultUrl: resultUrl ?? undefined };
+    return {
+      id: data.id,
+      status: 'succeeded',
+      resultUrl: resultUrl ?? undefined,
+      resultPath: data.resultPath,
+    };
   }
   return { id: data.id ?? null, status: 'failed', error: data.error ?? 'Could not generate this look.' };
 }

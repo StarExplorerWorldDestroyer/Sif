@@ -59,7 +59,9 @@ function normalizeHex(input: string): string | null {
   return /^[0-9a-fA-F]{6}$/.test(v) ? `#${v.toUpperCase()}` : null;
 }
 
-async function pickImage(): Promise<string | null> {
+type PickedImage = { uri: string; width?: number; height?: number };
+
+async function pickImage(): Promise<PickedImage | null> {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) return null;
   const result = await ImagePicker.launchImageLibraryAsync({
@@ -69,10 +71,49 @@ async function pickImage(): Promise<string | null> {
     quality: 0.9,
   });
   if (result.canceled) return null;
-  return result.assets[0]?.uri ?? null;
+  const asset = result.assets[0];
+  if (!asset?.uri) return null;
+  return { uri: asset.uri, width: asset.width, height: asset.height };
 }
 
 type StyleCache = Record<string, { styles: TryOnStyle[]; nextToken: string | null }>;
+
+/** One effect in a stacked look. Steps are applied in order, each on the
+ * previous step's result, so several effects combine into a single look. */
+type LookStep =
+  | { id: string; kind: 'hairstyle'; source: 'template'; templateId: string; label: string }
+  | { id: string; kind: 'hairstyle'; source: 'reference'; refPath: string; label: string }
+  | { id: string; kind: 'bangs' | 'extension' | 'volume' | 'wavy'; templateId: string; label: string }
+  | { id: string; kind: 'color'; color: ColorParams; label: string };
+
+const EFFECT_LABEL: Record<EffectKind, string> = {
+  hairstyle: 'Style',
+  color: 'Color',
+  bangs: 'Bangs',
+  extension: 'Length',
+  volume: 'Volume',
+  wavy: 'Wavy',
+};
+
+/** Run a single look step on top of the given image path. */
+function runStep(step: LookStep, selfiePath: string) {
+  if (step.kind === 'color') {
+    return requestTryOn({ kind: 'color', selfiePath, color: step.color, styleLabel: step.label });
+  }
+  if (step.kind === 'hairstyle' && step.source === 'reference') {
+    return requestTryOn({ kind: 'hairstyle', selfiePath, source: 'reference', refPath: step.refPath });
+  }
+  if (step.kind === 'hairstyle') {
+    return requestTryOn({
+      kind: 'hairstyle',
+      selfiePath,
+      source: 'template',
+      templateId: step.templateId,
+      styleLabel: step.label,
+    });
+  }
+  return requestTryOn({ kind: step.kind, selfiePath, templateId: step.templateId, styleLabel: step.label });
+}
 
 export default function TryOnScreen() {
   const { user } = useAuth();
@@ -82,7 +123,7 @@ export default function TryOnScreen() {
   const [consent, setConsent] = useState<boolean | null>(null);
   const [savingConsent, setSavingConsent] = useState(false);
 
-  const [selfie, setSelfie] = useState<string | null>(null);
+  const [selfie, setSelfie] = useState<PickedImage | null>(null);
   const [effect, setEffect] = useState<EffectKind>('hairstyle');
 
   // Style library per effect (cached so switching tabs doesn't refetch).
@@ -94,7 +135,7 @@ export default function TryOnScreen() {
 
   // Hairstyle can also use a reference photo instead of the library.
   const [useReference, setUseReference] = useState(false);
-  const [reference, setReference] = useState<string | null>(null);
+  const [reference, setReference] = useState<PickedImage | null>(null);
 
   // Color settings.
   const [colorHex, setColorHex] = useState<string | null>(null);
@@ -102,7 +143,12 @@ export default function TryOnScreen() {
   const [intensity, setIntensity] = useState(75);
   const [ombre, setOmbre] = useState(false);
 
+  // The look being built — effects applied in order, each on the previous result.
+  const [steps, setSteps] = useState<LookStep[]>([]);
+  const [adding, setAdding] = useState(false);
+
   const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
   const effectType = EFFECTS.find((e) => e.id === effect)?.type ?? 'template';
@@ -158,17 +204,17 @@ export default function TryOnScreen() {
   };
 
   const onPickSelfie = async () => {
-    const uri = await pickImage();
-    if (uri) {
-      setSelfie(uri);
+    const img = await pickImage();
+    if (img) {
+      setSelfie(img);
       setResult(null);
     }
   };
 
   const onPickReference = async () => {
-    const uri = await pickImage();
-    if (uri) {
-      setReference(uri);
+    const img = await pickImage();
+    if (img) {
+      setReference(img);
       setResult(null);
     }
   };
@@ -188,22 +234,22 @@ export default function TryOnScreen() {
     }
   };
 
-  const canRun =
-    !!selfie &&
-    !running &&
-    (effectType === 'color'
+  // Whether the current controls describe a valid effect to add to the look.
+  const configReady =
+    effectType === 'color'
       ? !!colorHex
       : effect === 'hairstyle' && useReference
         ? !!reference
-        : !!picked);
+        : !!picked;
+  const canAdd = configReady && !adding && !running;
+  const canGenerate = !!selfie && steps.length > 0 && !running;
 
-  const onRun = async () => {
-    if (!user || !selfie) return;
-    setRunning(true);
-    setResult(null);
+  const onAddStep = async () => {
+    if (!user || !configReady) return;
+    setAdding(true);
     try {
-      const selfiePath = await uploadTryonImage(user.id, 'selfie', selfie);
-      let res;
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      let step: LookStep;
       if (effectType === 'color') {
         const color: ColorParams = {
           hex: colorHex!,
@@ -211,32 +257,61 @@ export default function TryOnScreen() {
           pattern: ombre ? 'ombre' : 'full',
           coloringSection: 'bottom',
         };
-        res = await requestTryOn({ kind: 'color', selfiePath, color });
+        step = { id, kind: 'color', color, label: colorHex! };
       } else if (effect === 'hairstyle' && useReference) {
-        const refPath = await uploadTryonImage(user.id, 'ref', reference!);
-        res = await requestTryOn({ kind: 'hairstyle', selfiePath, source: 'reference', refPath });
+        const refPath = await uploadTryonImage(user.id, 'ref', reference!.uri, reference!);
+        step = { id, kind: 'hairstyle', source: 'reference', refPath, label: 'Reference photo' };
       } else if (effect === 'hairstyle') {
-        res = await requestTryOn({
-          kind: 'hairstyle',
-          selfiePath,
-          source: 'template',
-          templateId: picked!.templateId,
-          styleLabel: picked!.label,
-        });
+        step = { id, kind: 'hairstyle', source: 'template', templateId: picked!.templateId, label: picked!.label || 'Style' };
       } else {
-        res = await requestTryOn({
+        step = {
+          id,
           kind: effect as 'bangs' | 'extension' | 'volume' | 'wavy',
-          selfiePath,
           templateId: picked!.templateId,
-          styleLabel: picked!.label,
-        });
+          label: picked!.label || EFFECT_LABEL[effect],
+        };
       }
-      if (res.status === 'succeeded' && res.resultUrl) setResult(res.resultUrl);
-      else toast(res.error ?? 'Could not generate this look.', { tone: 'error' });
+      setSteps((prev) => [...prev, step]);
+      setResult(null);
+      // Clear the per-effect selection so the next pick starts fresh.
+      setPicked(null);
+      setColorHex(null);
+    } catch {
+      toast('Could not add that to your look. Please try again.', { tone: 'error' });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removeStep = (id: string) => {
+    setSteps((prev) => prev.filter((s) => s.id !== id));
+    setResult(null);
+  };
+
+  const onGenerate = async () => {
+    if (!user || !selfie || steps.length === 0) return;
+    setRunning(true);
+    setResult(null);
+    try {
+      setProgress('Preparing your photo…');
+      let currentPath = await uploadTryonImage(user.id, 'selfie', selfie.uri, selfie);
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        setProgress(`Applying ${EFFECT_LABEL[step.kind]} (${i + 1}/${steps.length})…`);
+        const res = await runStep(step, currentPath);
+        if (res.status !== 'succeeded' || !res.resultPath) {
+          toast(res.error ?? `Could not apply ${EFFECT_LABEL[step.kind]}.`, { tone: 'error' });
+          if (res.resultUrl) setResult(res.resultUrl);
+          return;
+        }
+        currentPath = res.resultPath;
+        if (res.resultUrl) setResult(res.resultUrl);
+      }
     } catch {
       toast('Could not generate this look. Please try again.', { tone: 'error' });
     } finally {
       setRunning(false);
+      setProgress(null);
     }
   };
 
@@ -301,14 +376,18 @@ export default function TryOnScreen() {
           accessibilityRole="button"
           accessibilityLabel="Choose a selfie">
           {selfie ? (
-            <Image source={{ uri: selfie }} style={styles.fill} contentFit="cover" />
+            <Image source={{ uri: selfie.uri }} style={styles.fill} contentFit="cover" />
           ) : (
             <Txt variant="label" color={Palette.textMuted}>Tap to choose a clear, front-facing selfie</Txt>
           )}
         </Pressable>
 
         {/* Step 2 — effect */}
-        <Txt variant="heading" style={styles.sectionTitle}>2. Choose an effect</Txt>
+        <Txt variant="heading" style={styles.sectionTitle}>2. Build your look</Txt>
+        <Txt variant="caption" color={Palette.textDim}>
+          Add one or more effects — they stack in order, so you can combine length, waves, color,
+          volume and bangs into a single look.
+        </Txt>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.effectRow}>
           {EFFECTS.map((e) => (
             <Pressable
@@ -402,7 +481,7 @@ export default function TryOnScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Choose a reference style photo">
                 {reference ? (
-                  <Image source={{ uri: reference }} style={styles.fill} contentFit="cover" />
+                  <Image source={{ uri: reference.uri }} style={styles.fill} contentFit="cover" />
                 ) : (
                   <Txt variant="label" color={Palette.textMuted}>Tap to upload a photo of the hairstyle you want</Txt>
                 )}
@@ -444,22 +523,68 @@ export default function TryOnScreen() {
           </>
         )}
 
-        {/* Run */}
+        {/* Add the configured effect to the look */}
         <Pressable
-          style={[styles.cta, !canRun && styles.ctaDisabled]}
-          onPress={onRun}
-          disabled={!canRun}
+          style={[styles.addBtn, !canAdd && styles.ctaDisabled]}
+          onPress={onAddStep}
+          disabled={!canAdd}
           accessibilityRole="button"
-          accessibilityLabel="Try this look">
+          accessibilityLabel="Add this effect to your look">
+          {adding ? (
+            <ActivityIndicator color={Palette.accent} />
+          ) : (
+            <Txt variant="label" color={Palette.accent}>+ ADD TO LOOK</Txt>
+          )}
+        </Pressable>
+
+        {/* The stacked look */}
+        {steps.length > 0 && (
+          <View style={styles.lookWrap}>
+            <Txt variant="heading" style={styles.sectionTitle}>3. Your look ({steps.length})</Txt>
+            {steps.map((s, i) => (
+              <View key={s.id} style={styles.stepRow}>
+                <Txt variant="caption" color={Palette.textDim} style={styles.stepNum}>{i + 1}</Txt>
+                {s.kind === 'color' ? (
+                  <View style={[styles.stepDot, { backgroundColor: s.color.hex ?? Palette.surface }]} />
+                ) : null}
+                <View style={{ flex: 1 }}>
+                  <Txt variant="label">{EFFECT_LABEL[s.kind]}</Txt>
+                  <Txt variant="caption" color={Palette.textDim} numberOfLines={1}>{s.label}</Txt>
+                </View>
+                <Pressable
+                  onPress={() => removeStep(s.id)}
+                  disabled={running}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${EFFECT_LABEL[s.kind]}`}>
+                  <Txt variant="label" color={Palette.textMuted}>Remove</Txt>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Generate the whole look */}
+        <Pressable
+          style={[styles.cta, !canGenerate && styles.ctaDisabled]}
+          onPress={onGenerate}
+          disabled={!canGenerate}
+          accessibilityRole="button"
+          accessibilityLabel="Generate your look">
           {running ? (
             <ActivityIndicator color={Palette.accent} />
           ) : (
-            <Txt variant="label" color={Palette.accent} style={styles.ctaTxt}>TRY THIS LOOK</Txt>
+            <Txt variant="label" color={Palette.accent} style={styles.ctaTxt}>GENERATE LOOK</Txt>
           )}
         </Pressable>
+        {!selfie && steps.length > 0 && (
+          <Txt variant="caption" color={Palette.textDim} style={styles.note}>
+            Add a selfie above to generate your look.
+          </Txt>
+        )}
         {running && (
           <Txt variant="caption" color={Palette.textDim} style={styles.note}>
-            Generating your look — this can take up to a minute.
+            {progress ?? 'Generating your look — this can take a minute.'}
           </Txt>
         )}
 
@@ -558,6 +683,32 @@ const styles = StyleSheet.create({
     borderColor: Palette.accent,
     backgroundColor: Palette.accentSoft,
   },
+
+  addBtn: {
+    marginTop: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    borderRadius: Radius.sm,
+    paddingVertical: Spacing.sm,
+  },
+
+  lookWrap: { gap: Spacing.sm, marginTop: Spacing.sm },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    backgroundColor: Palette.surface,
+  },
+  stepNum: { width: 16, textAlign: 'center' },
+  stepDot: { width: 20, height: 20, borderRadius: Radius.pill, borderWidth: 1, borderColor: Palette.border },
 
   cta: {
     marginTop: Spacing.lg,
