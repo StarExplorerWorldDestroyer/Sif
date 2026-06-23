@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Pill } from '@/components/ui/pill';
 import { Txt } from '@/components/ui/text';
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 import { getStyleById } from '@/data/discover';
 import { useCenteredContent } from '@/hooks/use-responsive';
 
@@ -63,6 +63,21 @@ export default function DiscoverDetailScreen() {
             <Pill key={h} label={h} />
           ))}
         </View>
+
+        <Pressable
+          style={styles.tryBtn}
+          onPress={() =>
+            router.push({
+              pathname: '/tryon',
+              params: { style: style.name, ...(style.examples[0] ? { ref: style.examples[0] } : {}) },
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel={`Try the ${style.name} look on your photo`}>
+          <Txt variant="label" color={Palette.accent} glow style={styles.tryBtnTxt}>
+            TRY THIS LOOK
+          </Txt>
+        </Pressable>
 
         <Txt variant="body" style={styles.summary}>
           {style.summary}
@@ -181,6 +196,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: Spacing.lg,
   },
+  tryBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: Palette.accent,
+    borderRadius: Radius.sm,
+    backgroundColor: Palette.accentSoft,
+    marginBottom: Spacing.lg,
+    ...Glow.sm,
+  },
+  tryBtnTxt: { letterSpacing: 4 },
   summary: { lineHeight: 24, marginBottom: Spacing.md },
   section: { marginTop: Spacing.lg },
   sectionTitle: { textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Spacing.sm },

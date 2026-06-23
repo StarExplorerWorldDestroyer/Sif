@@ -1,7 +1,9 @@
+import { useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image as RNImage,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,19 +17,27 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { Txt } from '@/components/ui/text';
 import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { hasPhoto, primaryPhotoUri } from '@/lib/photos';
 import {
   EFFECTS,
+  deleteTryon,
   fetchTryOnStyles,
   grantTryonConsent,
   hasTryonConsent,
+  listTryonResults,
+  listTryonSelfies,
   requestTryOn,
-  uploadTryonImage,
+  signTryonPhoto,
+  uploadTryonImageFromUri,
   type ColorParams,
   type EffectKind,
+  type SavedSelfie,
+  type TryOnGalleryItem,
   type TryOnStyle,
 } from '@/lib/tryon';
 import { useAuth } from '@/store/auth';
 import { useFeedback } from '@/store/feedback';
+import { useHaircuts } from '@/store/haircuts';
 
 const COLOR_SWATCHES: { name: string; hex: string }[] = [
   { name: 'Jet Black', hex: '#1C1C1C' },
@@ -76,6 +86,21 @@ async function pickImage(): Promise<PickedImage | null> {
   return { uri: asset.uri, width: asset.width, height: asset.height };
 }
 
+/** Resolve an image's pixel dimensions (works for local and remote URIs). */
+function getImageSize(uri: string): Promise<{ width?: number; height?: number }> {
+  return new Promise((resolve) => {
+    RNImage.getSize(
+      uri,
+      (width, height) => resolve({ width, height }),
+      () => resolve({}),
+    );
+  });
+}
+
+/** The active selfie — always already stored in the private bucket so it can be
+ * reused and chained without re-uploading. */
+type SelfieSel = { path: string; url: string };
+
 type StyleCache = Record<string, { styles: TryOnStyle[]; nextToken: string | null }>;
 
 /** One effect in a stacked look. Steps are applied in order, each on the
@@ -117,13 +142,27 @@ function runStep(step: LookStep, selfiePath: string) {
 
 export default function TryOnScreen() {
   const { user } = useAuth();
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
+  const { haircuts } = useHaircuts();
   const centered = useCenteredContent(560);
+  const params = useLocalSearchParams<{ ref?: string; style?: string }>();
 
   const [consent, setConsent] = useState<boolean | null>(null);
   const [savingConsent, setSavingConsent] = useState(false);
 
-  const [selfie, setSelfie] = useState<PickedImage | null>(null);
+  // 'create' = build a look; 'gallery' = browse/delete saved looks.
+  const [tab, setTab] = useState<'create' | 'gallery'>('create');
+
+  // Selfie: chosen from saved photos / a new upload / an existing haircut photo.
+  const [selfie, setSelfie] = useState<SelfieSel | null>(null);
+  const [savedSelfies, setSavedSelfies] = useState<SavedSelfie[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [showCuts, setShowCuts] = useState(false);
+
+  // Saved looks gallery.
+  const [gallery, setGallery] = useState<TryOnGalleryItem[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+
   const [effect, setEffect] = useState<EffectKind>('hairstyle');
 
   // Style library per effect (cached so switching tabs doesn't refetch).
@@ -157,6 +196,41 @@ export default function TryOnScreen() {
     if (!user) return;
     hasTryonConsent(user.id).then(setConsent);
   }, [user]);
+
+  const refreshSelfies = useCallback(async () => {
+    if (!user) return;
+    const list = await listTryonSelfies(user.id);
+    setSavedSelfies(list);
+    // Default the active selfie to the most recent saved one.
+    setSelfie((cur) => cur ?? list[0] ?? null);
+  }, [user]);
+
+  const refreshGallery = useCallback(async () => {
+    if (!user) return;
+    setGalleryLoading(true);
+    const list = await listTryonResults(user.id);
+    setGallery(list);
+    setGalleryLoading(false);
+  }, [user]);
+
+  // Once consent is granted, load the user's saved selfies and look gallery.
+  useEffect(() => {
+    if (!consent || !user) return;
+    refreshSelfies();
+    refreshGallery();
+  }, [consent, user, refreshSelfies, refreshGallery]);
+
+  // Deep-link from Discover ("Try this look"): preload a reference style photo.
+  const appliedParamRef = useRef(false);
+  useEffect(() => {
+    if (!consent || appliedParamRef.current) return;
+    if (params.ref) {
+      appliedParamRef.current = true;
+      setEffect('hairstyle');
+      setUseReference(true);
+      setReference({ uri: String(params.ref) });
+    }
+  }, [consent, params.ref]);
 
   const loadStyles = useCallback(
     async (kind: EffectKind, append = false) => {
@@ -203,12 +277,38 @@ export default function TryOnScreen() {
     setUseReference(false);
   };
 
-  const onPickSelfie = async () => {
+  // Upload a freshly-picked or existing photo, persist it as a reusable selfie,
+  // and select it. Selfies live in the private bucket so they can be reused next
+  // time without re-uploading.
+  const addSelfieFromUri = useCallback(
+    async (uri: string, dims?: { width?: number; height?: number }) => {
+      if (!user) return;
+      setImporting(true);
+      try {
+        const path = await uploadTryonImageFromUri(user.id, 'selfie', uri, dims);
+        const url = (await signTryonPhoto(path)) ?? uri;
+        const item = { path, url };
+        setSavedSelfies((prev) => [item, ...prev.filter((s) => s.path !== path)]);
+        setSelfie(item);
+        setResult(null);
+      } catch {
+        toast('Could not use that photo. Please try another.', { tone: 'error' });
+      } finally {
+        setImporting(false);
+      }
+    },
+    [user, toast],
+  );
+
+  const onAddPhoto = async () => {
     const img = await pickImage();
-    if (img) {
-      setSelfie(img);
-      setResult(null);
-    }
+    if (img) await addSelfieFromUri(img.uri, img);
+  };
+
+  const onPickFromCut = async (uri: string) => {
+    setShowCuts(false);
+    const dims = await getImageSize(uri);
+    await addSelfieFromUri(uri, dims);
   };
 
   const onPickReference = async () => {
@@ -259,7 +359,7 @@ export default function TryOnScreen() {
         };
         step = { id, kind: 'color', color, label: colorHex! };
       } else if (effect === 'hairstyle' && useReference) {
-        const refPath = await uploadTryonImage(user.id, 'ref', reference!.uri, reference!);
+        const refPath = await uploadTryonImageFromUri(user.id, 'ref', reference!.uri, reference!);
         step = { id, kind: 'hairstyle', source: 'reference', refPath, label: 'Reference photo' };
       } else if (effect === 'hairstyle') {
         step = { id, kind: 'hairstyle', source: 'template', templateId: picked!.templateId, label: picked!.label || 'Style' };
@@ -293,8 +393,8 @@ export default function TryOnScreen() {
     setRunning(true);
     setResult(null);
     try {
-      setProgress('Preparing your photo…');
-      let currentPath = await uploadTryonImage(user.id, 'selfie', selfie.uri, selfie);
+      let currentPath = selfie.path;
+      let lastResultPath: string | null = null;
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
         setProgress(`Applying ${EFFECT_LABEL[step.kind]} (${i + 1}/${steps.length})…`);
@@ -305,13 +405,31 @@ export default function TryOnScreen() {
           return;
         }
         currentPath = res.resultPath;
+        lastResultPath = res.resultPath;
         if (res.resultUrl) setResult(res.resultUrl);
       }
+      if (lastResultPath) refreshGallery();
     } catch {
       toast('Could not generate this look. Please try again.', { tone: 'error' });
     } finally {
       setRunning(false);
       setProgress(null);
+    }
+  };
+
+  const onDeleteLook = async (item: TryOnGalleryItem) => {
+    const ok = await confirm({
+      title: 'Delete this look?',
+      message: 'This permanently removes the generated photo.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    setGallery((prev) => prev.filter((g) => g.id !== item.id));
+    const done = await deleteTryon(item.id, item.resultPath);
+    if (!done) {
+      toast('Could not delete that look. Please try again.', { tone: 'error' });
+      refreshGallery();
     }
   };
 
@@ -363,24 +481,144 @@ export default function TryOnScreen() {
     );
   }
 
-  // --- Main studio ---
+  const cutPhotos = haircuts.filter(hasPhoto);
+
+  // --- Gallery (saved looks) ---
+  if (tab === 'gallery') {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <ScreenHeader title="Try a look" />
+        <View style={[styles.modeToggleWrap, centered ?? undefined]}>
+          <View style={styles.modeToggle}>
+            <Pressable style={styles.modeTab} onPress={() => setTab('create')} accessibilityRole="button">
+              <Txt variant="label" color={Palette.textMuted}>Create</Txt>
+            </Pressable>
+            <Pressable style={[styles.modeTab, styles.modeTabActive]} accessibilityRole="button">
+              <Txt variant="label" color={Palette.black}>Saved looks</Txt>
+            </Pressable>
+          </View>
+        </View>
+        <ScrollView contentContainerStyle={[styles.body, centered ?? undefined]}>
+          {galleryLoading && gallery.length === 0 ? (
+            <View style={styles.stylesLoading}>
+              <ActivityIndicator color={Palette.accent} />
+            </View>
+          ) : gallery.length === 0 ? (
+            <Txt variant="label" color={Palette.textDim} style={[styles.note, { marginTop: Spacing.xl }]}>
+              No saved looks yet. Generate one in Create and it’ll show up here.
+            </Txt>
+          ) : (
+            <View style={styles.galleryGrid}>
+              {gallery.map((g) => (
+                <View key={g.id} style={styles.galleryCell}>
+                  <Image source={{ uri: g.url }} style={styles.galleryImg} contentFit="cover" />
+                  <Pressable
+                    style={styles.galleryDelete}
+                    onPress={() => onDeleteLook(g)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete this look">
+                    <Txt variant="label" color={Palette.text}>✕</Txt>
+                  </Pressable>
+                  {!!g.styleLabel && (
+                    <Txt variant="caption" color={Palette.textDim} numberOfLines={1} style={styles.galleryLabel}>
+                      {g.styleLabel}
+                    </Txt>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // --- Main studio (create) ---
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScreenHeader title="Try a look" />
+      <View style={[styles.modeToggleWrap, centered ?? undefined]}>
+        <View style={styles.modeToggle}>
+          <Pressable style={[styles.modeTab, styles.modeTabActive]} accessibilityRole="button">
+            <Txt variant="label" color={Palette.black}>Create</Txt>
+          </Pressable>
+          <Pressable style={styles.modeTab} onPress={() => setTab('gallery')} accessibilityRole="button">
+            <Txt variant="label" color={Palette.textMuted}>Saved looks</Txt>
+          </Pressable>
+        </View>
+      </View>
       <ScrollView contentContainerStyle={[styles.body, centered ?? undefined]}>
+        {params.style ? (
+          <View style={styles.hintBanner}>
+            <Txt variant="caption" color={Palette.accent}>
+              Trying “{String(params.style)}” — pick your photo, then Add to look & Generate.
+            </Txt>
+          </View>
+        ) : null}
+
         {/* Step 1 — selfie */}
         <Txt variant="heading" style={styles.sectionTitle}>1. Your photo</Txt>
-        <Pressable
-          style={styles.selfieBox}
-          onPress={onPickSelfie}
-          accessibilityRole="button"
-          accessibilityLabel="Choose a selfie">
+        <View style={styles.selfieBox}>
           {selfie ? (
-            <Image source={{ uri: selfie.uri }} style={styles.fill} contentFit="cover" />
+            <Image source={{ uri: selfie.url }} style={styles.fill} contentFit="cover" />
           ) : (
-            <Txt variant="label" color={Palette.textMuted}>Tap to choose a clear, front-facing selfie</Txt>
+            <Txt variant="label" color={Palette.textMuted}>Choose a clear, front-facing photo</Txt>
           )}
-        </Pressable>
+          {importing ? (
+            <View style={styles.selfieBusy}>
+              <ActivityIndicator color={Palette.accent} />
+            </View>
+          ) : null}
+        </View>
+
+        {/* Saved selfies + sources */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.styleRow}>
+          <Pressable style={styles.sourceCard} onPress={onAddPhoto} accessibilityRole="button" accessibilityLabel="Upload a new photo">
+            <Txt variant="label" color={Palette.accent}>＋</Txt>
+            <Txt variant="caption" color={Palette.textMuted}>Upload</Txt>
+          </Pressable>
+          <Pressable
+            style={styles.sourceCard}
+            onPress={() => setShowCuts((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel="Choose from my haircut photos">
+            <Txt variant="label" color={Palette.accent}>✦</Txt>
+            <Txt variant="caption" color={Palette.textMuted}>My cuts</Txt>
+          </Pressable>
+          {savedSelfies.map((s) => (
+            <Pressable
+              key={s.path}
+              style={[styles.selfieThumbWrap, selfie?.path === s.path && styles.styleCardActive]}
+              onPress={() => { setSelfie(s); setResult(null); }}
+              accessibilityRole="button"
+              accessibilityLabel="Use this photo">
+              <Image source={{ uri: s.url }} style={styles.selfieThumb} contentFit="cover" />
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {/* Pick from existing haircut photos */}
+        {showCuts ? (
+          cutPhotos.length === 0 ? (
+            <Txt variant="caption" color={Palette.textDim} style={styles.note}>
+              No haircut photos yet — add some in your cuts to reuse them here.
+            </Txt>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.styleRow}>
+              {cutPhotos.map((h) => (
+                <Pressable
+                  key={h.id}
+                  style={styles.selfieThumbWrap}
+                  onPress={() => onPickFromCut(primaryPhotoUri(h))}
+                  accessibilityRole="button"
+                  accessibilityLabel="Use this haircut photo">
+                  <Image source={{ uri: primaryPhotoUri(h) }} style={styles.selfieThumb} contentFit="cover" />
+                </Pressable>
+              ))}
+            </ScrollView>
+          )
+        ) : null}
 
         {/* Step 2 — effect */}
         <Txt variant="heading" style={styles.sectionTitle}>2. Build your look</Txt>
@@ -610,6 +848,31 @@ const styles = StyleSheet.create({
   consentText: { lineHeight: 22 },
   consentList: { gap: Spacing.sm, marginTop: Spacing.sm },
 
+  modeToggleWrap: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
+  modeToggle: {
+    flexDirection: 'row',
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.pill,
+    padding: 3,
+  },
+  modeTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.pill,
+  },
+  modeTabActive: { backgroundColor: Palette.accent },
+
+  hintBanner: {
+    marginTop: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Palette.accent,
+    backgroundColor: Palette.accentSoft,
+  },
+
   sectionTitle: { marginTop: Spacing.md },
   selfieBox: {
     height: 220,
@@ -622,6 +885,48 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     padding: Spacing.lg,
   },
+  selfieBusy: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  sourceCard: {
+    width: 72,
+    height: 96,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    backgroundColor: Palette.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+  },
+  selfieThumbWrap: {
+    width: 72,
+    height: 96,
+    borderRadius: Radius.md,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    overflow: 'hidden',
+  },
+  selfieThumb: { width: '100%', height: '100%', backgroundColor: Palette.surface },
+
+  galleryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.md },
+  galleryCell: { width: '31%', gap: Spacing.xs },
+  galleryImg: { width: '100%', aspectRatio: 3 / 4, borderRadius: Radius.md, backgroundColor: Palette.surface },
+  galleryDelete: {
+    position: 'absolute',
+    top: Spacing.xs,
+    right: Spacing.xs,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  galleryLabel: { paddingHorizontal: 2 },
 
   effectRow: { gap: Spacing.sm, paddingVertical: Spacing.xs },
   effectTab: {
