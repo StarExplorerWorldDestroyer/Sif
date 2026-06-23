@@ -109,28 +109,42 @@ type ColorParams = {
   coloringSection?: 'top' | 'bottom';
 };
 
-// Build the hair-color task body from the client's color choice. A preset
-// takes priority over a custom palette (per the API contract).
+const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(n)));
+
+// Build the hair-color task body from the client's color choice, per the S2S
+// hair-color contract:
+//   - A `preset` (named colour) takes priority over a custom palette.
+//   - Full (solid) mode = exactly ONE palette and NO `pattern` object.
+//   - Ombre mode = a `pattern` named "ombre" plus exactly TWO palettes
+//     (root + ends). Sending an unrecognised pattern name (e.g. "full") makes
+//     the API ignore the palette / fall back to a default colour.
 function colorTaskBody(srcFileId: string, c: ColorParams): Record<string, unknown> {
   if (c.preset) return { src_file_id: srcFileId, preset: c.preset };
-  const palette = {
-    color: c.hex ?? '#000000',
-    color_intensity: c.intensity ?? 80,
-    shine_intensity: c.shine ?? 60,
-  };
+
+  const intensity = clamp(c.intensity ?? 90, 0, 100);
+  const shine = clamp(c.shine ?? 50, 0, 100);
+  const mainColor = c.hex ?? '#000000';
+  const main = { color: mainColor, color_intensity: intensity, shine_intensity: shine };
+
   if (c.pattern === 'ombre') {
+    // No second colour comes from the UI, so root with a natural near-black and
+    // put the chosen colour on the ends.
+    const root = { color: '#1C1C1C', color_intensity: 80, shine_intensity: shine };
+    const topFirst = (c.coloringSection ?? 'bottom') === 'top';
     return {
       src_file_id: srcFileId,
       pattern: {
         name: 'ombre',
-        blend_strength: c.blendStrength ?? 100,
+        blend_strength: clamp(c.blendStrength ?? 80, 0, 100),
         line_offset: -0.5,
         coloring_section: c.coloringSection ?? 'bottom',
       },
-      palettes: [palette],
+      palettes: topFirst ? [main, root] : [root, main],
     };
   }
-  return { src_file_id: srcFileId, pattern: { name: 'full' }, palettes: [palette] };
+
+  // Full (solid) mode: one palette, no pattern.
+  return { src_file_id: srcFileId, palettes: [main] };
 }
 
 Deno.serve(async (req) => {
