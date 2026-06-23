@@ -104,7 +104,10 @@ export async function uploadTryonImage(
   dims?: { width?: number; height?: number },
 ): Promise<string> {
   const resizedUri = await downscaleToJpeg(localUri, dims?.width, dims?.height);
-  const path = `${userId}/inputs/${Date.now()}-${kind}.jpg`;
+  // Selfies live under a stable folder so they can be listed and reused later;
+  // references are throwaway per-request.
+  const folder = kind === 'selfie' ? 'selfies' : 'refs';
+  const path = `${userId}/${folder}/${Date.now()}-${kind}.jpg`;
   const { body, contentType } = await readImageBody(resizedUri, 'image/jpeg');
   const { error } = await supabase.storage
     .from(BUCKET)
@@ -113,11 +116,105 @@ export async function uploadTryonImage(
   return path;
 }
 
+/**
+ * Make a remote (or already-local) image safe for ImageManipulator + upload.
+ * On web we fetch into a same-origin blob URL (avoids canvas tainting); on
+ * native we download to the cache directory. Local URIs pass through.
+ */
+async function localizeForManipulation(uri: string): Promise<string> {
+  if (!/^https?:\/\//.test(uri)) return uri;
+  if (Platform.OS === 'web') {
+    const res = await fetch(uri);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
+  const dest = `${FileSystem.cacheDirectory}tryon-import-${Date.now()}.jpg`;
+  const { uri: local } = await FileSystem.downloadAsync(uri, dest);
+  return local;
+}
+
+/** Upload an image from any URI (including a remote/public URL, e.g. an
+ * existing haircut photo) into the private try-on bucket. */
+export async function uploadTryonImageFromUri(
+  userId: string,
+  kind: 'selfie' | 'ref',
+  sourceUri: string,
+  dims?: { width?: number; height?: number },
+): Promise<string> {
+  const local = await localizeForManipulation(sourceUri);
+  return uploadTryonImage(userId, kind, local, dims);
+}
+
 /** Resolve a try-on storage path to a short-lived signed URL for display. */
 export async function signTryonPhoto(path: string | null): Promise<string | null> {
   if (!path) return null;
   const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, SIGNED_TTL);
   return data?.signedUrl ?? null;
+}
+
+/** A reusable selfie the user has already added to the try-on bucket. */
+export type SavedSelfie = { path: string; url: string };
+
+/** List the user's saved selfies (most recent first) with signed display URLs. */
+export async function listTryonSelfies(userId: string): Promise<SavedSelfie[]> {
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .list(`${userId}/selfies`, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+  if (error || !data) return [];
+  const paths = data.filter((f) => f.name && !f.name.startsWith('.')).map((f) => `${userId}/selfies/${f.name}`);
+  if (paths.length === 0) return [];
+  const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrls(paths, SIGNED_TTL);
+  return (signed ?? [])
+    .map((s) => ({ path: s.path ?? '', url: s.signedUrl ?? '' }))
+    .filter((s) => s.path && s.url);
+}
+
+/** A previously generated look shown in the gallery. */
+export type TryOnGalleryItem = {
+  id: string;
+  kind: EffectKind;
+  styleLabel: string;
+  createdAt: string;
+  resultPath: string;
+  url: string;
+};
+
+/** List the user's successfully generated looks (most recent first). */
+export async function listTryonResults(userId: string): Promise<TryOnGalleryItem[]> {
+  const { data, error } = await supabase
+    .from('hairstyle_tryons')
+    .select('id, kind, style_label, created_at, result_path')
+    .eq('user_id', userId)
+    .eq('status', 'succeeded')
+    .not('result_path', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error || !data) return [];
+  const rows = data.filter((r: any) => !!r.result_path);
+  if (rows.length === 0) return [];
+  const { data: signed } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrls(rows.map((r: any) => r.result_path as string), SIGNED_TTL);
+  const urlByPath = new Map((signed ?? []).map((s) => [s.path ?? '', s.signedUrl ?? '']));
+  return rows
+    .map((r: any) => ({
+      id: r.id as string,
+      kind: (r.kind ?? 'hairstyle') as EffectKind,
+      styleLabel: (r.style_label ?? '') as string,
+      createdAt: r.created_at as string,
+      resultPath: r.result_path as string,
+      url: urlByPath.get(r.result_path) ?? '',
+    }))
+    .filter((r) => r.url);
+}
+
+/** Delete a generated look: removes the row and its stored result image. */
+export async function deleteTryon(id: string, resultPath?: string | null): Promise<boolean> {
+  if (resultPath) {
+    await supabase.storage.from(BUCKET).remove([resultPath]);
+  }
+  const { error } = await supabase.from('hairstyle_tryons').delete().eq('id', id);
+  return !error;
 }
 
 /** Whether the user has consented to face-photo processing for try-on. */

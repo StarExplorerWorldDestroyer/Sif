@@ -248,16 +248,6 @@ export default function SettingsScreen() {
             </View>
             <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
           </Pressable>
-
-          <View style={styles.divider} />
-
-          <Pressable style={styles.actionRow} onPress={() => router.push('/tryon')}>
-            <View style={{ flex: 1 }}>
-              <Txt variant="body">Try a look (beta)</Txt>
-              <Txt variant="caption">Upload a selfie and preview new hairstyles on you.</Txt>
-            </View>
-            <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
-          </Pressable>
         </View>
 
         <SectionTitle>Privacy & safety</SectionTitle>
