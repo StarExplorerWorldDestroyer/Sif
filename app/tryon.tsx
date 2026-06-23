@@ -140,7 +140,7 @@ export default function TryOnScreen() {
   // Color settings.
   const [colorHex, setColorHex] = useState<string | null>(null);
   const [hexInput, setHexInput] = useState('');
-  const [intensity, setIntensity] = useState(75);
+  const [intensity, setIntensity] = useState(100);
   const [ombre, setOmbre] = useState(false);
 
   // The look being built — effects applied in order, each on the previous result.
