@@ -86,7 +86,7 @@ export default function DiscoverScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TabHeader title="Discover" />
+      <TabHeader title="Styles" />
       <View style={[styles.toggleWrap, centered]}>
         <View style={styles.toggle}>
           <ModeTab label="Styles" active={mode === 'styles'} onPress={() => setMode('styles')} />
@@ -95,7 +95,7 @@ export default function DiscoverScreen() {
             onPress={() => router.push('/tryon')}
             accessibilityRole="button"
             accessibilityLabel="Try a look on your photo">
-            <Txt variant="label" color={Palette.accent} glow>
+            <Txt variant="label" color={Palette.accent}>
               Try a look
             </Txt>
           </Pressable>
