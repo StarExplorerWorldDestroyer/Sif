@@ -137,7 +137,7 @@ function Header({ onBack }: { onBack: () => void }) {
       <Pressable onPress={onBack} hitSlop={8}>
         <IconSymbol name="chevron.left" size={26} color={Palette.text} />
       </Pressable>
-      <Txt variant="heading">Discover</Txt>
+      <Txt variant="heading">Styles</Txt>
       <View style={{ width: 26 }} />
     </View>
   );
