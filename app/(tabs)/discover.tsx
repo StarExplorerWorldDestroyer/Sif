@@ -91,11 +91,11 @@ export default function DiscoverScreen() {
         <View style={styles.toggle}>
           <ModeTab label="Styles" active={mode === 'styles'} onPress={() => setMode('styles')} />
           <Pressable
-            style={styles.tryTab}
+            style={styles.modeTab}
             onPress={() => router.push('/tryon')}
             accessibilityRole="button"
             accessibilityLabel="Try a look on your photo">
-            <Txt variant="label" color={Palette.accent}>
+            <Txt variant="label" color={Palette.textMuted}>
               Try a look
             </Txt>
           </Pressable>
@@ -343,15 +343,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
   },
   modeTabActive: { backgroundColor: Palette.accent },
-  tryTab: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.pill,
-    borderWidth: 1,
-    borderColor: Palette.accent,
-    backgroundColor: Palette.accentSoft,
-  },
   searchSpacing: { marginBottom: Spacing.md },
   sortRow: { flexDirection: 'row', gap: Spacing.xs, marginBottom: Spacing.md },
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xxl },
