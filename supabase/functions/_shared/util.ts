@@ -2,11 +2,56 @@
 import Stripe from 'npm:stripe@18';
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
+// Browser callers we trust. Native apps don't send an `Origin`, so CORS never
+// applies to them — this list only gates web (and local dev) origins. Anything
+// off-list falls back to the canonical origin so we never echo `*`.
+const ALLOWED_ORIGINS = [
+  Deno.env.get('APP_URL') || 'https://goldensif.com',
+  'https://goldensif.com',
+  'https://www.goldensif.com',
+];
+
+function resolveOrigin(req: Request): string {
+  const origin = req.headers.get('Origin') ?? '';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return origin;
+  return ALLOWED_ORIGINS[0];
+}
+
+/** CORS headers scoped to the request's origin (allowlisted), never `*`. */
+export function corsHeadersFor(req: Request): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': resolveOrigin(req),
+    Vary: 'Origin',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
+
+// Static fallback for any response not produced through `withCors`. Points at
+// the canonical origin rather than a wildcard.
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOWED_ORIGINS[0],
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+/**
+ * Wrap a request handler so every response carries origin-scoped CORS headers
+ * and OPTIONS preflights are answered automatically. Lets handlers keep using
+ * `json(...)` without threading the request through each call site.
+ */
+export async function withCors(
+  req: Request,
+  handler: () => Promise<Response> | Response,
+): Promise<Response> {
+  const cors = corsHeadersFor(req);
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  const res = await handler();
+  const headers = new Headers(res.headers);
+  for (const [k, v] of Object.entries(cors)) headers.set(k, v);
+  return new Response(res.body, { status: res.status, headers });
+}
 
 export function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

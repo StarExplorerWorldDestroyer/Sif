@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Field } from '@/components/ui/field';
 import { Txt } from '@/components/ui/text';
+import { Turnstile, turnstileConfigured } from '@/components/ui/turnstile';
 import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { useAuth } from '@/store/auth';
@@ -25,20 +26,26 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
-  const canSubmit = email.includes('@') && password.length >= 8;
+  const onCaptcha = useCallback((token: string | null) => setCaptchaToken(token), []);
+
+  // Only require a CAPTCHA token when Turnstile is actually configured.
+  const captchaOk = !turnstileConfigured || !!captchaToken;
+  const canSubmit = email.includes('@') && password.length >= 8 && captchaOk;
 
   async function submit() {
     if (!canSubmit || busy) return;
     setBusy(true);
     setError(null);
     setInfo(null);
+    const token = captchaToken ?? undefined;
     if (mode === 'signin') {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(email, password, token);
       if (error) setError(error);
       // On success, the auth listener redirects us automatically.
     } else {
-      const { error, needsConfirmation } = await signUp(email, password);
+      const { error, needsConfirmation } = await signUp(email, password, token);
       if (error) {
         setError(error);
       } else if (needsConfirmation) {
@@ -59,7 +66,7 @@ export default function LoginScreen() {
       return;
     }
     setBusy(true);
-    const { error } = await sendPasswordReset(email);
+    const { error } = await sendPasswordReset(email, captchaToken ?? undefined);
     setBusy(false);
     if (error) setError(error);
     else setInfo(`We sent a password reset link to ${email}.`);
@@ -110,6 +117,8 @@ export default function LoginScreen() {
               {info}
             </Txt>
           ) : null}
+
+          <Turnstile onToken={onCaptcha} />
 
           <Pressable
             style={[styles.button, !canSubmit && styles.buttonDisabled]}

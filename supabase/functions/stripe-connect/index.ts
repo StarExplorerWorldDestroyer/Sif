@@ -10,15 +10,14 @@
 // Secrets: supabase secrets set STRIPE_SECRET_KEY=sk_...
 // (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.)
 
-import { corsHeaders, getAdmin, getStripe, getUserId, json, safeRedirect } from '../_shared/util.ts';
+import { getAdmin, getStripe, getUserId, json, safeRedirect, withCors } from '../_shared/util.ts';
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+Deno.serve((req) =>
+  withCors(req, async () => {
+    const admin = getAdmin();
+    const stripe = getStripe();
 
-  const admin = getAdmin();
-  const stripe = getStripe();
-
-  try {
+    try {
     const uid = await getUserId(req, admin);
     if (!uid) return json({ error: 'Not authenticated.' }, 401);
 
@@ -93,8 +92,9 @@ Deno.serve(async (req) => {
       type: 'account_onboarding',
     });
     return json({ url: link.url });
-  } catch (err) {
-    console.error('stripe-connect error:', err);
-    return json({ error: 'Could not start payout onboarding. Please try again.' }, 500);
-  }
-});
+    } catch (err) {
+      console.error('stripe-connect error:', err);
+      return json({ error: 'Could not start payout onboarding. Please try again.' }, 500);
+    }
+  }),
+);

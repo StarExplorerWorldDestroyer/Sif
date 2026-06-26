@@ -15,12 +15,49 @@
 // Deploy:  supabase functions deploy hairstyle-tryon --use-api --project-ref <ref>
 // Secrets: supabase secrets set PERFECTCORP_API_KEY=...
 
-import { corsHeaders, getAdmin, getUserId, json } from '../_shared/util.ts';
+import { getAdmin, getUserId, json, withCors } from '../_shared/util.ts';
 
 const API_BASE = 'https://yce-api-01.makeupar.com';
 const BUCKET = 'tryon-photos';
 const POLL_INTERVAL_MS = 1500;
 const POLL_MAX_ATTEMPTS = 40; // ~60s ceiling
+
+// Each `create` is a billable Perfect Corp call, so cap generations per user.
+// A chained "look" spends one unit per effect, which is the real cost. Tunable
+// without a code change via env; sane defaults otherwise.
+const MAX_PER_HOUR = Number(Deno.env.get('TRYON_MAX_PER_HOUR') ?? '20');
+const MAX_PER_DAY = Number(Deno.env.get('TRYON_MAX_PER_DAY') ?? '60');
+
+/**
+ * Throttle billable generations per user using the existing `hairstyle_tryons`
+ * history (indexed on user_id, created_at). Fails open on a count error so a
+ * transient DB hiccup never blocks a paying user. Returns a friendly message
+ * when the cap is hit, else null.
+ */
+// deno-lint-ignore no-explicit-any
+async function rateLimited(admin: any, uid: string): Promise<string | null> {
+  const now = Date.now();
+  const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await admin
+    .from('hairstyle_tryons')
+    .select('created_at')
+    .eq('user_id', uid)
+    .gte('created_at', dayAgo);
+  if (error) {
+    console.error('rate-limit count error:', error);
+    return null;
+  }
+  const rows = (data ?? []) as { created_at: string }[];
+  if (rows.length >= MAX_PER_DAY) {
+    return "You've reached today's try-on limit. Please try again tomorrow.";
+  }
+  const hourAgo = now - 60 * 60 * 1000;
+  const lastHour = rows.filter((r) => new Date(r.created_at).getTime() >= hourAgo).length;
+  if (lastHour >= MAX_PER_HOUR) {
+    return "You've made a lot of looks in the last hour. Please take a short break and try again.";
+  }
+  return null;
+}
 
 type EffectKind = 'hairstyle' | 'color' | 'bangs' | 'extension' | 'volume' | 'wavy';
 type EffectType = 'template' | 'color';
@@ -145,18 +182,17 @@ function colorTaskBody(srcFileId: string, c: ColorParams): Record<string, unknow
   return { src_file_id: srcFileId, pattern: { name: 'full' }, palettes: [main] };
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+Deno.serve((req) =>
+  withCors(req, async () => {
+    const admin = getAdmin();
 
-  const admin = getAdmin();
+    try {
+      if (!Deno.env.get('PERFECTCORP_API_KEY')) {
+        return json({ error: 'Try-on is not configured yet.' }, 503);
+      }
 
-  try {
-    if (!Deno.env.get('PERFECTCORP_API_KEY')) {
-      return json({ error: 'Try-on is not configured yet.' }, 503);
-    }
-
-    const uid = await getUserId(req, admin);
-    if (!uid) return json({ error: 'Not authenticated.' }, 401);
+      const uid = await getUserId(req, admin);
+      if (!uid) return json({ error: 'Not authenticated.' }, 401);
 
     let body: {
       action?: string;
@@ -210,6 +246,10 @@ Deno.serve(async (req) => {
     if (!consent.data?.tryon_consent_at) {
       return json({ error: 'Consent is required before using try-on.' }, 403);
     }
+
+    // Cost guard: each generation is a billable provider call.
+    const limitMsg = await rateLimited(admin, uid);
+    if (limitMsg) return json({ error: limitMsg }, 429);
 
     const { selfiePath, source, templateId, refPath, styleLabel, color } = body;
     if (!selfiePath) return json({ error: 'Missing selfie.' }, 400);
@@ -325,8 +365,9 @@ Deno.serve(async (req) => {
       .eq('id', tryonId);
 
     return json({ id: tryonId, status: 'succeeded', resultPath });
-  } catch (err) {
-    console.error('hairstyle-tryon error:', err);
-    return json({ error: 'Something went wrong. Please try again.' }, 500);
-  }
-});
+    } catch (err) {
+      console.error('hairstyle-tryon error:', err);
+      return json({ error: 'Something went wrong. Please try again.' }, 500);
+    }
+  }),
+);
