@@ -8,7 +8,7 @@
 // Deploy:  supabase functions deploy create-checkout-session
 // Secrets: STRIPE_SECRET_KEY, optional PLATFORM_FEE_BPS (basis points, e.g. 1000 = 10%)
 
-import { corsHeaders, getAdmin, getStripe, getUserId, json, safeRedirect } from '../_shared/util.ts';
+import { getAdmin, getStripe, getUserId, json, safeRedirect, withCors } from '../_shared/util.ts';
 
 type Kind = 'deposit' | 'balance' | 'full';
 
@@ -16,17 +16,17 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-
-  try {
-    return await handle(req);
-  } catch (err) {
-    // Log the detail server-side; return a generic message to the client.
-    console.error('create-checkout-session error:', err);
-    return json({ error: 'Could not start checkout. Please try again.' }, 500);
-  }
-});
+Deno.serve((req) =>
+  withCors(req, async () => {
+    try {
+      return await handle(req);
+    } catch (err) {
+      // Log the detail server-side; return a generic message to the client.
+      console.error('create-checkout-session error:', err);
+      return json({ error: 'Could not start checkout. Please try again.' }, 500);
+    }
+  }),
+);
 
 async function handle(req: Request): Promise<Response> {
   const admin = getAdmin();

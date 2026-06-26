@@ -28,13 +28,18 @@ type AuthContextValue = {
   loading: boolean;
   /** True while the user is in a password-recovery flow (clicked a reset link). */
   recovering: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (
+    email: string,
+    password: string,
+    captchaToken?: string,
+  ) => Promise<{ error: string | null }>;
   /** Returns needsConfirmation=true when a confirmation email was sent. */
   signUp: (
     email: string,
     password: string,
+    captchaToken?: string,
   ) => Promise<{ error: string | null; needsConfirmation: boolean }>;
-  sendPasswordReset: (email: string) => Promise<{ error: string | null }>;
+  sendPasswordReset: (email: string, captchaToken?: string) => Promise<{ error: string | null }>;
   updatePassword: (password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 };
@@ -91,28 +96,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.remove();
   }, []);
 
-  async function signIn(email: string, password: string) {
+  async function signIn(email: string, password: string, captchaToken?: string) {
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
+      options: captchaToken ? { captchaToken } : undefined,
     });
     return { error: error?.message ?? null };
   }
 
-  async function signUp(email: string, password: string) {
+  async function signUp(email: string, password: string, captchaToken?: string) {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { emailRedirectTo: authRedirectTo('/') },
+      options: { emailRedirectTo: authRedirectTo('/'), ...(captchaToken ? { captchaToken } : {}) },
     });
     // When email confirmation is required, no session is returned yet.
     const needsConfirmation = !error && !data.session;
     return { error: error?.message ?? null, needsConfirmation };
   }
 
-  async function sendPasswordReset(email: string) {
+  async function sendPasswordReset(email: string, captchaToken?: string) {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: authRedirectTo('/reset'),
+      ...(captchaToken ? { captchaToken } : {}),
     });
     return { error: error?.message ?? null };
   }
