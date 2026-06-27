@@ -51,8 +51,14 @@ function useAuthRedirect() {
     const onLanding = segments[0] === 'landing';
     const onReset = segments[0] === 'reset';
     const onOnboarding = segments[0] === 'onboarding';
-    // Public, shareable routes that don't require being signed in.
-    const onPublicRoute = segments[0] === 'u' || segments[0] === 'p' || segments[0] === 'likes';
+    // Public, shareable routes that don't require being signed in. Legal pages
+    // must stay reachable logged-out for the App Store privacy/terms URLs.
+    const onPublicRoute =
+      segments[0] === 'u' ||
+      segments[0] === 'p' ||
+      segments[0] === 'likes' ||
+      segments[0] === 'privacy' ||
+      segments[0] === 'terms';
 
     // Logged-out visitors land on the Golden Sif splash; the page's Enter
     // button takes them to /login. Login stays directly reachable too.
@@ -114,6 +120,8 @@ function RootNavigator() {
       <Stack.Screen name="services" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="tryon" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="reset" options={{ headerShown: false }} />
+      <Stack.Screen name="privacy" options={{ headerShown: false }} />
+      <Stack.Screen name="terms" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,6 +18,7 @@ import { useCenteredContent } from '@/hooks/use-responsive';
 import { useAuth } from '@/store/auth';
 
 export default function LoginScreen() {
+  const router = useRouter();
   const { signIn, signUp, sendPasswordReset } = useAuth();
   const centered = useCenteredContent(420);
 
@@ -152,6 +154,26 @@ export default function LoginScreen() {
                 : 'Already have an account? Log in'}
             </Txt>
           </Pressable>
+
+          <View style={styles.legal}>
+            <Txt variant="caption" style={styles.legalText}>
+              By continuing you agree to our{' '}
+            </Txt>
+            <Pressable onPress={() => router.push('/terms')}>
+              <Txt variant="caption" color={Palette.textMuted}>
+                Terms
+              </Txt>
+            </Pressable>
+            <Txt variant="caption" style={styles.legalText}>
+              {' '}
+              and{' '}
+            </Txt>
+            <Pressable onPress={() => router.push('/privacy')}>
+              <Txt variant="caption" color={Palette.textMuted}>
+                Privacy Policy
+              </Txt>
+            </Pressable>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -176,4 +198,12 @@ const styles = StyleSheet.create({
   buttonText: { fontWeight: '600' },
   forgot: { alignItems: 'center', marginTop: Spacing.lg },
   switch: { alignItems: 'center', marginTop: Spacing.xl },
+  legal: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: Spacing.xl,
+  },
+  legalText: { textAlign: 'center' },
 });

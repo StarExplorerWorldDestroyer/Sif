@@ -104,15 +104,20 @@ export default function SettingsScreen() {
 
   async function confirmDelete() {
     const ok = await confirm({
-      title: 'Delete account data?',
+      title: 'Delete your account?',
       message:
-        'This permanently deletes all your haircuts and profile, then signs you out. This cannot be undone.',
+        'This permanently deletes your account and everything in it — profile, haircuts, photos, messages, bookings, and looks. This cannot be undone.',
       confirmLabel: 'Delete',
       destructive: true,
     });
     if (!ok || !user) return;
-    await supabase.from('haircuts').delete().eq('user_id', user.id);
-    await supabase.from('profiles').delete().eq('id', user.id);
+    setBusy(true);
+    const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
+    setBusy(false);
+    if (error) {
+      toast('Could not delete your account. Please try again.', { tone: 'error' });
+      return;
+    }
     await signOut();
   }
 
@@ -348,10 +353,23 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
 
-        <Pressable style={styles.deleteButton} onPress={confirmDelete}>
+        <SectionTitle>About</SectionTitle>
+        <View style={styles.card}>
+          <Pressable style={styles.actionRow} onPress={() => router.push('/privacy')}>
+            <Txt variant="body">Privacy Policy</Txt>
+            <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+          </Pressable>
+          <View style={styles.divider} />
+          <Pressable style={styles.actionRow} onPress={() => router.push('/terms')}>
+            <Txt variant="body">Terms of Service</Txt>
+            <IconSymbol name="chevron.right" size={16} color={Palette.textDim} />
+          </Pressable>
+        </View>
+
+        <Pressable style={styles.deleteButton} onPress={confirmDelete} disabled={busy}>
           <IconSymbol name="trash" size={16} color={Palette.accent} />
           <Txt variant="label" color={Palette.accent}>
-            Delete account data
+            Delete account
           </Txt>
         </Pressable>
       </ScrollView>
