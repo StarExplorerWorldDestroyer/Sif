@@ -115,7 +115,7 @@ export default function AddHaircutScreen() {
         </Txt>
         <Pressable onPress={handleSave} hitSlop={8} disabled={!canSave}>
           <Txt variant="body" color={canSave ? Palette.accent : Palette.textDim}>
-            Save
+            {forClient ? 'Submit' : 'Save'}
           </Txt>
         </Pressable>
       </View>

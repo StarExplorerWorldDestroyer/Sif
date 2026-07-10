@@ -184,6 +184,24 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
     return rows;
   }
 
+  /**
+   * Upload + attach photos to a freshly created haircut. If any photo fails,
+   * delete the haircut row and rethrow — otherwise a retry after a transient
+   * failure leaves duplicate, photo-less cuts behind.
+   */
+  async function attachPhotosOrRollback(haircutId: string, photos: Photo[]) {
+    try {
+      const photoRows = await preparePhotoRows(haircutId, photos);
+      if (photoRows.length > 0) {
+        const { error } = await supabase.from('photos').insert(photoRows);
+        if (error) throw error;
+      }
+    } catch (e) {
+      await supabase.from('haircuts').delete().eq('id', haircutId);
+      throw e;
+    }
+  }
+
   async function addHaircut(input: HaircutFormInput) {
     if (!user) return;
     const { data, error } = await supabase
@@ -193,10 +211,7 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
       .single();
     if (error || !data) throw error ?? new Error('Failed to save haircut');
 
-    const photoRows = await preparePhotoRows(data.id, input.photos);
-    if (photoRows.length > 0) {
-      await supabase.from('photos').insert(photoRows);
-    }
+    await attachPhotosOrRollback(data.id, input.photos);
     await refetch();
   }
 
@@ -211,10 +226,7 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
       .single();
     if (error || !data) throw error ?? new Error('Failed to submit cut');
 
-    const photoRows = await preparePhotoRows(data.id, input.photos);
-    if (photoRows.length > 0) {
-      await supabase.from('photos').insert(photoRows);
-    }
+    await attachPhotosOrRollback(data.id, input.photos);
   }
 
   async function acceptPending(id: string) {

@@ -7,7 +7,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { FullWindowOverlay } from 'react-native-screens';
 
 import { Txt } from '@/components/ui/text';
 import { FontSize, Palette, Radius, Spacing } from '@/constants/theme';
@@ -37,6 +38,18 @@ type PromptOptions = {
 };
 
 type PromptState = (PromptOptions & { resolve: (v: string | null) => void }) | null;
+
+/**
+ * On iOS, screens presented as native modals (add, settings, …) render in
+ * their own view controller, ABOVE anything mounted at the root — so toasts
+ * were invisible whenever a modal was open. FullWindowOverlay hosts the toast
+ * layer in a window-level view that sits above modal presentations, and it
+ * passes touches through empty areas.
+ */
+function ToastHost({ children }: { children: ReactNode }) {
+  if (Platform.OS === 'ios') return <FullWindowOverlay>{children}</FullWindowOverlay>;
+  return <>{children}</>;
+}
 
 type FeedbackValue = {
   /** Show a transient, themed message. Works on web and native. */
@@ -114,19 +127,21 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     <FeedbackContext.Provider value={value}>
       {children}
 
-      <View style={styles.toastLayer} pointerEvents="box-none">
-        {toasts.map((t) => (
-          <Pressable
-            key={t.id}
-            onPress={() => dismiss(t.id)}
-            accessibilityRole="alert"
-            style={[styles.toast, t.tone === 'error' && styles.toastError, t.tone === 'success' && styles.toastSuccess]}>
-            <Txt variant="label" color={Palette.text} style={styles.toastText}>
-              {t.message}
-            </Txt>
-          </Pressable>
-        ))}
-      </View>
+      <ToastHost>
+        <View style={styles.toastLayer} pointerEvents="box-none">
+          {toasts.map((t) => (
+            <Pressable
+              key={t.id}
+              onPress={() => dismiss(t.id)}
+              accessibilityRole="alert"
+              style={[styles.toast, t.tone === 'error' && styles.toastError, t.tone === 'success' && styles.toastSuccess]}>
+              <Txt variant="label" color={Palette.text} style={styles.toastText}>
+                {t.message}
+              </Txt>
+            </Pressable>
+          ))}
+        </View>
+      </ToastHost>
 
       <Modal
         visible={!!confirmState}
