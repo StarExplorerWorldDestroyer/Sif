@@ -33,6 +33,25 @@
 drop policy if exists "public read avatars" on storage.objects;
 drop policy if exists "public read haircut photos" on storage.objects;
 
+-- 1b) FOLLOW-UP FIX (migration: restore_owner_read_storage_policies).
+-- Dropping every SELECT policy on these buckets broke UPLOADS too: the Storage
+-- API inserts objects with a RETURNING clause, and reading back the new row
+-- requires SELECT. Owner-scoped reads restore uploads while still blocking
+-- bucket-wide enumeration by strangers.
+drop policy if exists "owner read haircut photos" on storage.objects;
+create policy "owner read haircut photos" on storage.objects
+  for select using (
+    bucket_id = 'haircut-photos'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "owner read avatars" on storage.objects;
+create policy "owner read avatars" on storage.objects
+  for select using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
 -- 2a) Trigger functions: no client needs EXECUTE.
 revoke execute on function public.auto_accept_test_connection() from public, anon, authenticated;
 revoke execute on function public.auto_follow_back_test() from public, anon, authenticated;
