@@ -3,6 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { Platform } from 'react-native';
 
+import { reportClientError, userFacingMessage, UserError } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 
 const BUCKET = 'tryon-photos';
@@ -258,15 +259,49 @@ function mapStyles(data: any): TryOnStyle[] {
     .filter((s) => s.templateId);
 }
 
+/**
+ * Pull a human-readable error out of a failed `functions.invoke` response.
+ * Non-2xx responses put the body on `error.context` (a Response), which the
+ * client previously ignored — so rate limits / missing config looked identical
+ * to a generic crash.
+ */
+async function invokeErrorMessage(error: unknown, fallback: string): Promise<string> {
+  const ctx = (error as { context?: Response } | null)?.context;
+  if (ctx && typeof ctx.json === 'function') {
+    try {
+      const body = await ctx.json();
+      if (typeof body?.error === 'string' && body.error.trim()) return body.error;
+    } catch {
+      // ignore parse failures — fall through to generic message
+    }
+  }
+  if (error instanceof Error && error.message && !/non-2xx/i.test(error.message)) {
+    return error.message;
+  }
+  return fallback;
+}
+
 /** Fetch a page of the template library for a template-based effect. */
 export async function fetchTryOnStyles(
   kind: EffectKind,
   startingToken?: string,
-): Promise<{ styles: TryOnStyle[]; nextToken: string | null }> {
+): Promise<{ styles: TryOnStyle[]; nextToken: string | null; error?: string }> {
   const { data, error } = await supabase.functions.invoke('hairstyle-tryon', {
     body: { action: 'styles', kind, startingToken },
   });
-  if (error) return { styles: [], nextToken: null };
+  if (error) {
+    const detail = await invokeErrorMessage(error, 'Could not load styles.');
+    reportClientError({
+      scope: 'tryon.styles',
+      message: detail,
+      detail: { kind, startingToken: startingToken ?? null },
+    });
+    return {
+      styles: [],
+      nextToken: null,
+      error: userFacingMessage(detail, UserError.tryonStyles),
+    };
+  }
   return { styles: mapStyles(data?.data), nextToken: data?.nextToken ?? null };
 }
 
@@ -281,8 +316,27 @@ export async function requestTryOn(req: TryOnRequest): Promise<TryOnResult> {
   const { data, error } = await supabase.functions.invoke('hairstyle-tryon', {
     body: { action: 'create', ...req },
   });
-  if (error || !data) {
-    return { id: null, status: 'failed', error: 'Something went wrong. Please try again.' };
+  const logCtx = {
+    kind: req.kind,
+    // Paths only — never log image bytes or labels that might include user text.
+    selfiePath: req.selfiePath,
+  };
+  if (error) {
+    const fromBody =
+      data && typeof data === 'object' && typeof (data as { error?: unknown }).error === 'string'
+        ? (data as { error: string }).error
+        : null;
+    const detail = fromBody ?? (await invokeErrorMessage(error, UserError.tryonGenerate));
+    reportClientError({ scope: 'tryon.create', message: detail, detail: logCtx });
+    return {
+      id: null,
+      status: 'failed',
+      error: userFacingMessage(detail, UserError.tryonGenerate),
+    };
+  }
+  if (!data) {
+    reportClientError({ scope: 'tryon.create', message: 'Empty response from hairstyle-tryon', detail: logCtx });
+    return { id: null, status: 'failed', error: UserError.tryonGenerate };
   }
   if (data.status === 'succeeded' && data.resultPath) {
     const resultUrl = await signTryonPhoto(data.resultPath);
@@ -293,5 +347,27 @@ export async function requestTryOn(req: TryOnRequest): Promise<TryOnResult> {
       resultPath: data.resultPath,
     };
   }
-  return { id: data.id ?? null, status: 'failed', error: data.error ?? 'Could not generate this look.' };
+  const detail = typeof data.error === 'string' ? data.error : UserError.tryonGenerate;
+  reportClientError({
+    scope: 'tryon.create',
+    message: detail,
+    detail: { ...logCtx, id: data.id ?? null, status: data.status ?? null },
+  });
+  return {
+    id: data.id ?? null,
+    status: 'failed',
+    error: userFacingMessage(detail, UserError.tryonGenerate),
+  };
+}
+
+/**
+ * Download a remote (signed) try-on image to a local cache file so it can be
+ * shared / saved via the system share sheet.
+ */
+export async function cacheTryonImage(url: string): Promise<string> {
+  if (!/^https?:\/\//.test(url)) return url;
+  if (Platform.OS === 'web') return url;
+  const dest = `${FileSystem.cacheDirectory}tryon-save-${Date.now()}.jpg`;
+  const { uri } = await FileSystem.downloadAsync(url, dest);
+  return uri;
 }

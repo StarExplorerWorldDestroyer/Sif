@@ -12,8 +12,10 @@ Privacy Policy URL to enter in App Store Connect:
   to "Do you or your third-party partners use data for tracking purposes?"
 - All collected data is **linked to the user's identity** (it lives under their
   account).
-- No third-party advertising or analytics SDKs are bundled today. If you later
-  add analytics/crash reporting, revisit "Usage Data" and "Diagnostics".
+- No third-party advertising or analytics SDKs are bundled. First-party
+  diagnostic error logs (`client_error_logs`) are collected to fix bugs —
+  declare **Diagnostics → Crash Data** (or **Other Diagnostic Data**) as
+  Collected, Linked to user, Not used for tracking, purpose App Functionality.
 
 ## Data types to declare
 
@@ -43,8 +45,9 @@ For each: **Collected = Yes**, **Linked to user = Yes**, **Used for tracking = N
   safe. Pick "App Functionality".
 - **No precise/coarse Location, Contacts, Browsing History, Search History,
   Health, or Sensitive Info** is collected.
-- **No Usage Data or Diagnostics** today (no analytics/crash SDK). Leave these
-  unchecked unless/until one is added.
+- **No Usage Data** (no analytics SDK). **Diagnostics → Other Diagnostic Data**
+  (or Crash Data): first-party `client_error_logs` for bugfix — Linked to
+  user, Not used for tracking, purpose App Functionality.
 
 ## Third parties that receive data (for your records)
 

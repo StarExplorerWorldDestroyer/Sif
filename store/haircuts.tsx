@@ -29,18 +29,25 @@ export type HaircutFormInput = {
   tools: string[];
 };
 
+/** Outcome of create/update: notes always persist even when photos fail. */
+export type SaveHaircutResult = {
+  id: string;
+  /** False when the cut/notes row saved but photo upload/attach failed. */
+  photosOk: boolean;
+};
+
 type HaircutsContextValue = {
   haircuts: Haircut[];
   /** Cuts a stylist submitted to you, awaiting your acceptance. */
   pending: Haircut[];
   loading: boolean;
   refetch: () => Promise<void>;
-  addHaircut: (input: HaircutFormInput) => Promise<void>;
+  addHaircut: (input: HaircutFormInput) => Promise<SaveHaircutResult>;
   /** Stylist: submit a cut to a connected client's account (lands as pending). */
-  createForClient: (clientId: string, input: HaircutFormInput) => Promise<void>;
+  createForClient: (clientId: string, input: HaircutFormInput) => Promise<SaveHaircutResult>;
   acceptPending: (id: string) => Promise<void>;
   rejectPending: (id: string) => Promise<void>;
-  updateHaircut: (id: string, input: HaircutFormInput) => Promise<void>;
+  updateHaircut: (id: string, input: HaircutFormInput) => Promise<SaveHaircutResult>;
   deleteHaircut: (id: string) => Promise<void>;
   toggleLike: (id: string) => void;
   toggleBookmark: (id: string) => void;
@@ -185,25 +192,19 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
   }
 
   /**
-   * Upload + attach photos to a freshly created haircut. If any photo fails,
-   * delete the haircut row and rethrow — otherwise a retry after a transient
-   * failure leaves duplicate, photo-less cuts behind.
+   * Upload + attach photos. Never deletes the haircut — notes/cut metadata must
+   * survive photo failures so a retry can re-attach images without retyping.
    */
-  async function attachPhotosOrRollback(haircutId: string, photos: Photo[]) {
-    try {
-      const photoRows = await preparePhotoRows(haircutId, photos);
-      if (photoRows.length > 0) {
-        const { error } = await supabase.from('photos').insert(photoRows);
-        if (error) throw error;
-      }
-    } catch (e) {
-      await supabase.from('haircuts').delete().eq('id', haircutId);
-      throw e;
-    }
+  async function attachPhotos(haircutId: string, photos: Photo[]): Promise<void> {
+    const photoRows = await preparePhotoRows(haircutId, photos);
+    if (photoRows.length === 0) return;
+    const { error } = await supabase.from('photos').insert(photoRows);
+    if (error) throw error;
   }
 
-  async function addHaircut(input: HaircutFormInput) {
-    if (!user) return;
+  async function addHaircut(input: HaircutFormInput): Promise<SaveHaircutResult> {
+    if (!user) throw new Error('You need to be signed in to save a haircut.');
+    // Persist cut + notes first so a photo failure cannot erase them.
     const { data, error } = await supabase
       .from('haircuts')
       .insert(inputToRow(input))
@@ -211,12 +212,18 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
       .single();
     if (error || !data) throw error ?? new Error('Failed to save haircut');
 
-    await attachPhotosOrRollback(data.id, input.photos);
-    await refetch();
+    try {
+      await attachPhotos(data.id, input.photos);
+      await refetch();
+      return { id: data.id, photosOk: true };
+    } catch {
+      await refetch();
+      return { id: data.id, photosOk: false };
+    }
   }
 
-  async function createForClient(clientId: string, input: HaircutFormInput) {
-    if (!user) return;
+  async function createForClient(clientId: string, input: HaircutFormInput): Promise<SaveHaircutResult> {
+    if (!user) throw new Error('You need to be signed in to submit a cut.');
     // user_id = the client; created_by defaults to the stylist (auth.uid());
     // status 'pending' so it lands in the client's inbox for acceptance.
     const { data, error } = await supabase
@@ -226,7 +233,12 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
       .single();
     if (error || !data) throw error ?? new Error('Failed to submit cut');
 
-    await attachPhotosOrRollback(data.id, input.photos);
+    try {
+      await attachPhotos(data.id, input.photos);
+      return { id: data.id, photosOk: true };
+    } catch {
+      return { id: data.id, photosOk: false };
+    }
   }
 
   async function acceptPending(id: string) {
@@ -280,18 +292,43 @@ export function HaircutsProvider({ children }: { children: ReactNode }) {
     await supabase.from('haircut_updates').delete().eq('id', id);
   }
 
-  async function updateHaircut(id: string, input: HaircutFormInput) {
-    if (!user) return;
+  async function updateHaircut(id: string, input: HaircutFormInput): Promise<SaveHaircutResult> {
+    if (!user) throw new Error('You need to be signed in to save a haircut.');
+    // Notes/metadata first — always committed even if photo swap fails later.
     const { error } = await supabase.from('haircuts').update(inputToRow(input)).eq('id', id);
     if (error) throw error;
 
-    // Replace the photo set: upload new ones, then swap rows.
-    const photoRows = await preparePhotoRows(id, input.photos);
-    await supabase.from('photos').delete().eq('haircut_id', id);
-    if (photoRows.length > 0) {
-      await supabase.from('photos').insert(photoRows);
+    try {
+      // Upload replacements before touching existing rows so a mid-upload failure
+      // leaves the previous photos intact.
+      const photoRows = await preparePhotoRows(id, input.photos);
+      const { data: previous } = await supabase.from('photos').select('*').eq('haircut_id', id);
+      const { error: delErr } = await supabase.from('photos').delete().eq('haircut_id', id);
+      if (delErr) throw delErr;
+      if (photoRows.length > 0) {
+        const { error: insErr } = await supabase.from('photos').insert(photoRows);
+        if (insErr) {
+          // Best-effort restore of the prior photo rows (URIs still in storage).
+          if (previous && previous.length > 0) {
+            await supabase.from('photos').insert(
+              previous.map((p: any) => ({
+                haircut_id: id,
+                uri: p.uri,
+                angle: p.angle,
+                note: p.note,
+                position: p.position,
+              })),
+            );
+          }
+          throw insErr;
+        }
+      }
+      await refetch();
+      return { id, photosOk: true };
+    } catch {
+      await refetch();
+      return { id, photosOk: false };
     }
-    await refetch();
   }
 
   async function deleteHaircut(id: string) {

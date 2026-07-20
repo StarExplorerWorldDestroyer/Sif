@@ -1,7 +1,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -19,6 +20,15 @@ import { TagInput } from '@/components/ui/tag-input';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import {
+  clearHaircutDraft,
+  draftHasContent,
+  haircutDraftKey,
+  loadHaircutDraft,
+  saveHaircutDraft,
+  type HaircutDraft,
+} from '@/lib/haircut-drafts';
+import { errorMessage, reportClientError, UserError } from '@/lib/errors';
 import { toISODate } from '@/lib/reminders';
 import { useFeedback } from '@/store/feedback';
 import { useHaircuts } from '@/store/haircuts';
@@ -34,12 +44,16 @@ export default function AddHaircutScreen() {
     clientName?: string;
   }>();
   const { addHaircut, updateHaircut, createForClient, getById } = useHaircuts();
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
   const centered = useCenteredContent(640);
 
   const editing = getById(id ?? '');
   // Stylist mode: building a cut to submit to a connected client's account.
   const forClient = !!clientId && !editing;
+  const draftKey = useMemo(
+    () => haircutDraftKey({ editingId: editing?.id, clientId: forClient ? clientId : undefined }),
+    [editing?.id, forClient, clientId],
+  );
 
   const [cutType, setCutType] = useState(editing?.cutType ?? '');
   const [location, setLocation] = useState(editing?.location ?? '');
@@ -56,11 +70,143 @@ export default function AddHaircutScreen() {
   const [techniques, setTechniques] = useState<string[]>(editing?.techniques ?? []);
   const [tools, setTools] = useState<string[]>(editing?.tools ?? []);
   const [saving, setSaving] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
 
-  const canSave = cutType.trim().length > 0 && !saving;
+  // Snapshot of notes that were already on the server when editing — used to
+  // block accidental wipes if the form somehow clears them.
+  const priorNotesRef = useRef(editing?.publicNotes?.trim() ?? '');
+
+  const canSave = cutType.trim().length > 0 && !saving && draftReady;
+
+  const applyDraft = (d: HaircutDraft) => {
+    setCutType(d.cutType);
+    setLocation(d.location);
+    setStylistName(d.stylistName);
+    setStylistId(d.stylistId);
+    setDate(d.date || today);
+    setPrice(d.price);
+    setTip(d.tip);
+    setNotes(d.notes);
+    // Local photo URIs can expire after app restart — only restore when present.
+    if (d.photos?.length) setPhotos(d.photos);
+    setLengthTop(d.lengthTop);
+    setLengthSides(d.lengthSides);
+    setLengthBack(d.lengthBack);
+    setTechniques(d.techniques ?? []);
+    setTools(d.tools ?? []);
+  };
+
+  // Restore a local draft so notes survive failed saves / accidental backs.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const draft = await loadHaircutDraft(draftKey);
+      if (cancelled) return;
+      if (draftHasContent(draft)) {
+        if (editing) {
+          // Prefer draft notes when they're longer than what's on the server
+          // (covers "typed notes, save failed, came back to edit").
+          const serverNotes = editing.publicNotes?.trim() ?? '';
+          const draftNotes = draft!.notes.trim();
+          if (draftNotes.length > serverNotes.length) {
+            applyDraft(draft!);
+            setDraftRestored(true);
+          } else if (draftNotes.length > 0 && draftNotes !== serverNotes) {
+            applyDraft({ ...draft!, notes: draftNotes || serverNotes });
+            setDraftRestored(true);
+          }
+        } else {
+          applyDraft(draft!);
+          setDraftRestored(true);
+        }
+      }
+      setDraftReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Only run for this screen identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  // Debounced autosave of the whole form (notes especially).
+  useEffect(() => {
+    if (!draftReady) return;
+    const timer = setTimeout(() => {
+      void saveHaircutDraft(draftKey, {
+        cutType,
+        location,
+        stylistName,
+        stylistId,
+        date,
+        price,
+        tip,
+        notes,
+        photos,
+        lengthTop,
+        lengthSides,
+        lengthBack,
+        techniques,
+        tools,
+      });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [
+    draftReady,
+    draftKey,
+    cutType,
+    location,
+    stylistName,
+    stylistId,
+    date,
+    price,
+    tip,
+    notes,
+    photos,
+    lengthTop,
+    lengthSides,
+    lengthBack,
+    techniques,
+    tools,
+  ]);
+
+  async function flushDraft() {
+    await saveHaircutDraft(draftKey, {
+      cutType,
+      location,
+      stylistName,
+      stylistId,
+      date,
+      price,
+      tip,
+      notes,
+      photos,
+      lengthTop,
+      lengthSides,
+      lengthBack,
+      techniques,
+      tools,
+    });
+  }
 
   async function handleSave() {
     if (!canSave) return;
+    Keyboard.dismiss();
+    await flushDraft();
+
+    const prior = priorNotesRef.current;
+    if (editing && prior.length >= 20 && notes.trim().length === 0) {
+      const ok = await confirm({
+        title: 'Clear notes?',
+        message: 'This cut already has notes saved. Saving now will erase them.',
+        confirmLabel: 'Clear notes',
+        cancelLabel: 'Keep editing',
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+
     const input = {
       cutType,
       location,
@@ -80,7 +226,19 @@ export default function AddHaircutScreen() {
     setSaving(true);
     try {
       if (forClient && clientId) {
-        await createForClient(clientId, input);
+        const result = await createForClient(clientId, input);
+        if (!result.photosOk) {
+          reportClientError({
+            scope: 'haircut.submit_client.photos',
+            message: 'Photos failed after cut submit',
+            detail: { haircutId: result.id, photoCount: photos.length },
+          });
+          toast(UserError.saveHaircutPhotos, { tone: 'error' });
+          // Keep draft so they can retry photos; cut is already pending for client.
+          setSaving(false);
+          return;
+        }
+        await clearHaircutDraft(draftKey);
         router.back();
         toast(
           `Sent to ${clientName || 'your client'}. It’ll appear in their account once they accept it.`,
@@ -89,16 +247,54 @@ export default function AddHaircutScreen() {
         return;
       }
       if (editing) {
-        await updateHaircut(editing.id, input);
+        const result = await updateHaircut(editing.id, input);
+        priorNotesRef.current = notes.trim();
+        if (!result.photosOk) {
+          reportClientError({
+            scope: 'haircut.update.photos',
+            message: 'Photos failed after haircut update',
+            detail: { haircutId: result.id, photoCount: photos.length },
+          });
+          toast(UserError.saveHaircutPhotos, { tone: 'error' });
+          setSaving(false);
+          return;
+        }
+        await clearHaircutDraft(draftKey);
         router.back();
-      } else {
-        await addHaircut(input);
-        // Offer to set a reminder for the next cut, seeded from this cut's date.
-        router.replace({ pathname: '/reminder', params: { postcut: '1', from: date } });
+        return;
       }
-    } catch {
+
+      const result = await addHaircut(input);
+      priorNotesRef.current = notes.trim();
+      if (!result.photosOk) {
+        reportClientError({
+          scope: 'haircut.save.photos',
+          message: 'Photos failed after haircut create',
+          detail: { haircutId: result.id, photoCount: photos.length },
+        });
+        await clearHaircutDraft(draftKey);
+        // Cut + notes are on the server — open edit so they can retry photos.
+        toast(UserError.saveHaircutPhotos, { tone: 'error' });
+        router.replace({ pathname: '/add', params: { id: result.id } });
+        return;
+      }
+      await clearHaircutDraft(draftKey);
+      // Offer to set a reminder for the next cut, seeded from this cut's date.
+      router.replace({ pathname: '/reminder', params: { postcut: '1', from: date } });
+    } catch (e) {
       setSaving(false);
-      toast('Something went wrong saving your haircut. Please try again.', { tone: 'error' });
+      await flushDraft();
+      reportClientError({
+        scope: forClient ? 'haircut.submit_client' : editing ? 'haircut.update' : 'haircut.save',
+        message: errorMessage(e),
+        detail: {
+          forClient,
+          editing: !!editing,
+          photoCount: photos.length,
+          notesLen: notes.trim().length,
+        },
+      });
+      toast(UserError.saveHaircut, { tone: 'error' });
     }
   }
 
@@ -125,7 +321,8 @@ export default function AddHaircutScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={[styles.content, centered]}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}>
           {forClient ? (
             <View style={styles.clientBanner}>
@@ -134,6 +331,14 @@ export default function AddHaircutScreen() {
               </Txt>
               <Txt variant="caption">
                 They’ll review and accept it before it’s added to their account.
+              </Txt>
+            </View>
+          ) : null}
+
+          {draftRestored ? (
+            <View style={styles.draftBanner}>
+              <Txt variant="caption" color={Palette.accent}>
+                Restored your unsaved draft (including notes).
               </Txt>
             </View>
           ) : null}
@@ -248,6 +453,11 @@ export default function AddHaircutScreen() {
             numberOfLines={4}
             style={styles.notes}
           />
+          {notes.trim().length > 0 ? (
+            <Txt variant="caption" color={Palette.textDim} style={styles.notesHint}>
+              Notes autosave on this device while you type.
+            </Txt>
+          ) : null}
 
           <Pressable
             style={[styles.saveButton, !canSave && styles.saveButtonDisabled]}
@@ -298,8 +508,17 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
     gap: 2,
   },
+  draftBanner: {
+    backgroundColor: Palette.accentSoft,
+    borderRadius: Radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.accent,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
   sectionLabel: { marginBottom: Spacing.sm },
   saveHint: { textAlign: 'center', marginTop: Spacing.sm },
+  notesHint: { marginTop: -Spacing.md, marginBottom: Spacing.md },
   row: { flexDirection: 'row', gap: Spacing.md },
   half: { flex: 1 },
   third: { flex: 1 },

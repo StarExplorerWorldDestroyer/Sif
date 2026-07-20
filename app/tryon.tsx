@@ -3,9 +3,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image as RNImage,
+  Linking,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   TextInput,
   View,
@@ -13,13 +18,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppImage as Image } from '@/components/ui/app-image';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { Txt } from '@/components/ui/text';
 import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
+import { errorMessage, reportClientError, UserError } from '@/lib/errors';
 import { hasPhoto, primaryPhotoUri } from '@/lib/photos';
 import {
   EFFECTS,
+  cacheTryonImage,
   deleteTryon,
   fetchTryOnStyles,
   grantTryonConsent,
@@ -71,9 +79,12 @@ function normalizeHex(input: string): string | null {
 
 type PickedImage = { uri: string; width?: number; height?: number };
 
-async function pickImage(): Promise<PickedImage | null> {
+async function pickFromLibrary(): Promise<PickedImage | null> {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!perm.granted) return null;
+  if (!perm.granted) {
+    Alert.alert('Permission needed', 'Please allow photo access to choose a selfie.');
+    return null;
+  }
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     allowsEditing: true,
@@ -84,6 +95,35 @@ async function pickImage(): Promise<PickedImage | null> {
   const asset = result.assets[0];
   if (!asset?.uri) return null;
   return { uri: asset.uri, width: asset.width, height: asset.height };
+}
+
+async function pickFromCamera(): Promise<PickedImage | null> {
+  const perm = await ImagePicker.requestCameraPermissionsAsync();
+  if (!perm.granted) {
+    Alert.alert('Permission needed', 'Please allow camera access to take a selfie.');
+    return null;
+  }
+  const result = await ImagePicker.launchCameraAsync({
+    allowsEditing: true,
+    aspect: [3, 4],
+    quality: 0.9,
+  });
+  if (result.canceled) return null;
+  const asset = result.assets[0];
+  if (!asset?.uri) return null;
+  return { uri: asset.uri, width: asset.width, height: asset.height };
+}
+
+/** Ask for a selfie — camera or library on native; library-only on web. */
+function pickImage(): Promise<PickedImage | null> {
+  if (Platform.OS === 'web') return pickFromLibrary();
+  return new Promise((resolve) => {
+    Alert.alert('Your photo', undefined, [
+      { text: 'Take Photo', onPress: () => void pickFromCamera().then(resolve) },
+      { text: 'Choose from Library', onPress: () => void pickFromLibrary().then(resolve) },
+      { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+    ]);
+  });
 }
 
 /** Resolve an image's pixel dimensions (works for local and remote URIs). */
@@ -189,6 +229,9 @@ export default function TryOnScreen() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  // Full-screen preview for a generated look (gallery or just-created result).
+  const [viewing, setViewing] = useState<{ url: string; label?: string } | null>(null);
+  const [savingLook, setSavingLook] = useState(false);
 
   const effectType = EFFECTS.find((e) => e.id === effect)?.type ?? 'template';
 
@@ -242,14 +285,17 @@ export default function TryOnScreen() {
       }
       setStylesLoading(true);
       const token = append ? (cacheRef.current[kind]?.nextToken ?? undefined) : undefined;
-      const { styles, nextToken: nt } = await fetchTryOnStyles(kind, token);
+      const { styles, nextToken: nt, error } = await fetchTryOnStyles(kind, token);
+      if (error && styles.length === 0) {
+        toast(error, { tone: 'error' });
+      }
       const merged = append ? [...(cacheRef.current[kind]?.styles ?? []), ...styles] : styles;
       cacheRef.current[kind] = { styles: merged, nextToken: nt };
       setStyles(merged);
       setNextToken(nt);
       setStylesLoading(false);
     },
-    [],
+    [toast],
   );
 
   // Load the library when consent is granted, the effect changes, or we leave
@@ -291,8 +337,12 @@ export default function TryOnScreen() {
         setSavedSelfies((prev) => [item, ...prev.filter((s) => s.path !== path)]);
         setSelfie(item);
         setResult(null);
-      } catch {
-        toast('Could not use that photo. Please try another.', { tone: 'error' });
+      } catch (e) {
+        reportClientError({
+          scope: 'tryon.upload_selfie',
+          message: errorMessage(e),
+        });
+        toast(UserError.tryonPhoto, { tone: 'error' });
       } finally {
         setImporting(false);
       }
@@ -312,7 +362,8 @@ export default function TryOnScreen() {
   };
 
   const onPickReference = async () => {
-    const img = await pickImage();
+    // Reference styles are almost always library photos, not selfies.
+    const img = await pickFromLibrary();
     if (img) {
       setReference(img);
       setResult(null);
@@ -342,42 +393,61 @@ export default function TryOnScreen() {
         ? !!reference
         : !!picked;
   const canAdd = configReady && !adding && !running;
-  const canGenerate = !!selfie && steps.length > 0 && !running;
+  // Allow Generate with either a stacked look OR the effect currently selected
+  // (so picking a style + Generate works without the extra "Add to look" tap).
+  const canGenerate = !!selfie && (steps.length > 0 || configReady) && !running && !adding;
+
+  /** Build a LookStep from the current effect controls (may upload a ref photo). */
+  const buildCurrentStep = async (): Promise<LookStep> => {
+    if (!user) throw new Error('Not signed in');
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    if (effectType === 'color') {
+      const color: ColorParams = {
+        hex: colorHex!,
+        intensity,
+        pattern: ombre ? 'ombre' : 'full',
+        coloringSection: 'bottom',
+      };
+      return { id, kind: 'color', color, label: colorHex! };
+    }
+    if (effect === 'hairstyle' && useReference) {
+      const refPath = await uploadTryonImageFromUri(user.id, 'ref', reference!.uri, reference!);
+      return { id, kind: 'hairstyle', source: 'reference', refPath, label: 'Reference photo' };
+    }
+    if (effect === 'hairstyle') {
+      return {
+        id,
+        kind: 'hairstyle',
+        source: 'template',
+        templateId: picked!.templateId,
+        label: picked!.label || 'Style',
+      };
+    }
+    return {
+      id,
+      kind: effect as 'bangs' | 'extension' | 'volume' | 'wavy',
+      templateId: picked!.templateId,
+      label: picked!.label || EFFECT_LABEL[effect],
+    };
+  };
 
   const onAddStep = async () => {
     if (!user || !configReady) return;
     setAdding(true);
     try {
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      let step: LookStep;
-      if (effectType === 'color') {
-        const color: ColorParams = {
-          hex: colorHex!,
-          intensity,
-          pattern: ombre ? 'ombre' : 'full',
-          coloringSection: 'bottom',
-        };
-        step = { id, kind: 'color', color, label: colorHex! };
-      } else if (effect === 'hairstyle' && useReference) {
-        const refPath = await uploadTryonImageFromUri(user.id, 'ref', reference!.uri, reference!);
-        step = { id, kind: 'hairstyle', source: 'reference', refPath, label: 'Reference photo' };
-      } else if (effect === 'hairstyle') {
-        step = { id, kind: 'hairstyle', source: 'template', templateId: picked!.templateId, label: picked!.label || 'Style' };
-      } else {
-        step = {
-          id,
-          kind: effect as 'bangs' | 'extension' | 'volume' | 'wavy',
-          templateId: picked!.templateId,
-          label: picked!.label || EFFECT_LABEL[effect],
-        };
-      }
+      const step = await buildCurrentStep();
       setSteps((prev) => [...prev, step]);
       setResult(null);
       // Clear the per-effect selection so the next pick starts fresh.
       setPicked(null);
       setColorHex(null);
-    } catch {
-      toast('Could not add that to your look. Please try again.', { tone: 'error' });
+    } catch (e) {
+      reportClientError({
+        scope: 'tryon.add_step',
+        message: errorMessage(e),
+        detail: { effect },
+      });
+      toast(UserError.tryonAddStep, { tone: 'error' });
     } finally {
       setAdding(false);
     }
@@ -389,31 +459,78 @@ export default function TryOnScreen() {
   };
 
   const onGenerate = async () => {
-    if (!user || !selfie || steps.length === 0) return;
+    if (!user || !selfie) return;
     setRunning(true);
     setResult(null);
     try {
+      let lookSteps = steps;
+      // No stacked look yet — use whatever is currently selected in the controls.
+      if (lookSteps.length === 0) {
+        if (!configReady) return;
+        const step = await buildCurrentStep();
+        lookSteps = [step];
+        setSteps(lookSteps);
+        setPicked(null);
+        setColorHex(null);
+      }
       let currentPath = selfie.path;
       let lastResultPath: string | null = null;
-      for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        setProgress(`Applying ${EFFECT_LABEL[step.kind]} (${i + 1}/${steps.length})…`);
+      let lastResultUrl: string | null = null;
+      for (let i = 0; i < lookSteps.length; i++) {
+        const step = lookSteps[i];
+        setProgress(`Applying ${EFFECT_LABEL[step.kind]} (${i + 1}/${lookSteps.length})…`);
         const res = await runStep(step, currentPath);
         if (res.status !== 'succeeded' || !res.resultPath) {
-          toast(res.error ?? `Could not apply ${EFFECT_LABEL[step.kind]}.`, { tone: 'error' });
+          // `res.error` is already sanitized in lib/tryon (details logged there).
+          toast(res.error ?? UserError.tryonGenerate, { tone: 'error' });
           if (res.resultUrl) setResult(res.resultUrl);
           return;
         }
         currentPath = res.resultPath;
         lastResultPath = res.resultPath;
-        if (res.resultUrl) setResult(res.resultUrl);
+        if (res.resultUrl) {
+          lastResultUrl = res.resultUrl;
+          setResult(res.resultUrl);
+        }
       }
       if (lastResultPath) refreshGallery();
-    } catch {
-      toast('Could not generate this look. Please try again.', { tone: 'error' });
+      if (lastResultUrl) setViewing({ url: lastResultUrl, label: 'Your new look' });
+    } catch (e) {
+      reportClientError({
+        scope: 'tryon.generate',
+        message: errorMessage(e),
+        detail: { stepCount: steps.length },
+      });
+      toast(UserError.tryonGenerate, { tone: 'error' });
     } finally {
       setRunning(false);
       setProgress(null);
+    }
+  };
+
+  const onSaveLook = async (url: string) => {
+    setSavingLook(true);
+    try {
+      if (Platform.OS === 'web') {
+        // Open the signed URL — browsers let the user save/download from there.
+        await Linking.openURL(url);
+        toast('Opened look — right-click or long-press to save.', { tone: 'success' });
+        return;
+      }
+      const local = await cacheTryonImage(url);
+      await Share.share(
+        Platform.OS === 'ios'
+          ? { url: local }
+          : { message: local, url: local, title: 'Golden Sif look' },
+      );
+    } catch (e) {
+      reportClientError({
+        scope: 'tryon.save_look',
+        message: errorMessage(e),
+      });
+      toast(UserError.tryonSave, { tone: 'error' });
+    } finally {
+      setSavingLook(false);
     }
   };
 
@@ -432,6 +549,44 @@ export default function TryOnScreen() {
       refreshGallery();
     }
   };
+
+  const renderLookViewer = () => (
+    <Modal visible={!!viewing} transparent animationType="fade" onRequestClose={() => setViewing(null)}>
+      <View style={styles.lightbox}>
+        <Pressable style={styles.lightboxBackdrop} onPress={() => setViewing(null)} />
+        {viewing ? (
+          <Image source={{ uri: viewing.url }} style={styles.lightboxImage} contentFit="contain" />
+        ) : null}
+        <Pressable
+          style={styles.lightboxClose}
+          onPress={() => setViewing(null)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Close look">
+          <IconSymbol name="xmark" size={26} color={Palette.text} />
+        </Pressable>
+        {viewing?.label ? (
+          <Txt variant="label" color={Palette.text} style={styles.lightboxLabel}>
+            {viewing.label}
+          </Txt>
+        ) : null}
+        <Pressable
+          style={[styles.lightboxSave, savingLook && styles.ctaDisabled]}
+          onPress={() => viewing && onSaveLook(viewing.url)}
+          disabled={savingLook || !viewing}
+          accessibilityRole="button"
+          accessibilityLabel="Save or share this look">
+          {savingLook ? (
+            <ActivityIndicator color={Palette.black} />
+          ) : (
+            <Txt variant="label" color={Palette.black}>
+              {Platform.OS === 'web' ? 'Download' : 'Save / Share'}
+            </Txt>
+          )}
+        </Pressable>
+      </View>
+    </Modal>
+  );
 
   // --- Loading consent state ---
   if (consent === null) {
@@ -511,7 +666,12 @@ export default function TryOnScreen() {
             <View style={styles.galleryGrid}>
               {gallery.map((g) => (
                 <View key={g.id} style={styles.galleryCell}>
-                  <Image source={{ uri: g.url }} style={styles.galleryImg} contentFit="cover" />
+                  <Pressable
+                    onPress={() => setViewing({ url: g.url, label: g.styleLabel || undefined })}
+                    accessibilityRole="button"
+                    accessibilityLabel="View this look larger">
+                    <Image source={{ uri: g.url }} style={styles.galleryImg} contentFit="cover" />
+                  </Pressable>
                   <Pressable
                     style={styles.galleryDelete}
                     onPress={() => onDeleteLook(g)}
@@ -530,6 +690,7 @@ export default function TryOnScreen() {
             </View>
           )}
         </ScrollView>
+        {renderLookViewer()}
       </SafeAreaView>
     );
   }
@@ -815,9 +976,14 @@ export default function TryOnScreen() {
             <Txt variant="label" color={Palette.accent} style={styles.ctaTxt}>GENERATE LOOK</Txt>
           )}
         </Pressable>
-        {!selfie && steps.length > 0 && (
+        {!selfie && (steps.length > 0 || configReady) && (
           <Txt variant="caption" color={Palette.textDim} style={styles.note}>
             Add a selfie above to generate your look.
+          </Txt>
+        )}
+        {selfie && steps.length === 0 && !configReady && (
+          <Txt variant="caption" color={Palette.textDim} style={styles.note}>
+            Pick a style (or color) above, then Generate — or Add to look to stack more effects.
           </Txt>
         )}
         {running && (
@@ -830,10 +996,30 @@ export default function TryOnScreen() {
         {result && (
           <View style={styles.resultWrap}>
             <Txt variant="heading" style={styles.sectionTitle}>Your new look</Txt>
-            <Image source={{ uri: result }} style={styles.resultImg} contentFit="cover" />
+            <Pressable
+              onPress={() => setViewing({ url: result, label: 'Your new look' })}
+              accessibilityRole="button"
+              accessibilityLabel="View look larger">
+              <Image source={{ uri: result }} style={styles.resultImg} contentFit="cover" />
+            </Pressable>
+            <Pressable
+              style={styles.saveResultBtn}
+              onPress={() => onSaveLook(result)}
+              disabled={savingLook}
+              accessibilityRole="button"
+              accessibilityLabel="Save or share this look">
+              {savingLook ? (
+                <ActivityIndicator color={Palette.accent} />
+              ) : (
+                <Txt variant="label" color={Palette.accent}>
+                  {Platform.OS === 'web' ? 'DOWNLOAD LOOK' : 'SAVE / SHARE LOOK'}
+                </Txt>
+              )}
+            </Pressable>
           </View>
         )}
       </ScrollView>
+      {renderLookViewer()}
     </SafeAreaView>
   );
 }
@@ -1043,4 +1229,40 @@ const styles = StyleSheet.create({
 
   resultWrap: { marginTop: Spacing.lg, gap: Spacing.sm },
   resultImg: { width: '100%', aspectRatio: 3 / 4, borderRadius: Radius.lg, backgroundColor: Palette.surface },
+  saveResultBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: Palette.accent,
+    borderRadius: Radius.sm,
+    paddingVertical: Spacing.sm,
+  },
+
+  lightbox: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lightboxBackdrop: { ...StyleSheet.absoluteFillObject },
+  lightboxImage: { width: '100%', height: '72%' },
+  lightboxClose: { position: 'absolute', top: Spacing.xl + 24, right: Spacing.lg, zIndex: 2 },
+  lightboxLabel: {
+    position: 'absolute',
+    top: Spacing.xl + 28,
+    left: Spacing.lg,
+    right: 56,
+  },
+  lightboxSave: {
+    position: 'absolute',
+    bottom: Spacing.xxl,
+    alignSelf: 'center',
+    backgroundColor: Palette.accent,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    minWidth: 160,
+    alignItems: 'center',
+  },
 });

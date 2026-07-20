@@ -23,6 +23,7 @@ const SECTIONS: LegalSection[] = [
     heading: 'Information collected automatically',
     body: [
       '• Basic technical and usage data needed to operate the service, such as device/browser type and server logs.',
+      '• Diagnostic error reports when something fails in the app (what feature failed and a technical message), so we can fix bugs. These are stored on our servers and are not used for advertising.',
       '• If you opt in to push notifications, a notification token for your device or browser.',
       'We do not use third-party advertising or cross-app tracking.',
     ],
