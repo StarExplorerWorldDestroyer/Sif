@@ -22,10 +22,12 @@ import {
   type Maintenance,
 } from '@/data/discover';
 import { fetchStylists } from '@/lib/bookings';
+import { ReferencesPanel } from '../references';
+import { TryOnPanel } from '../tryon';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import type { StylistCard } from '@/types';
 
-type Mode = 'styles' | 'stylists';
+type Mode = 'styles' | 'tryon' | 'saved' | 'stylists';
 
 const LENGTH_COLORS: Record<CutLength, string> = {
   Buzzed: '#FF5733',
@@ -90,24 +92,12 @@ export default function DiscoverScreen() {
       <View style={[styles.toggleWrap, centered]}>
         <View style={styles.toggle}>
           <ModeTab label="Styles" active={mode === 'styles'} onPress={() => setMode('styles')} />
-          <Pressable
-            style={styles.modeTab}
-            onPress={() => router.push('/tryon')}
-            accessibilityRole="button"
-            accessibilityLabel="Try a look on your photo">
-            <Txt variant="label" color={Palette.textMuted}>
-              Try a look
-            </Txt>
-          </Pressable>
-          <Pressable
-            style={styles.modeTab}
-            onPress={() => router.push('/references')}
-            accessibilityRole="button"
-            accessibilityLabel="Saved reference photos and Pinterest links">
-            <Txt variant="label" color={Palette.textMuted}>
-              Saved
-            </Txt>
-          </Pressable>
+          <ModeTab
+            label="Try a look"
+            active={mode === 'tryon'}
+            onPress={() => setMode('tryon')}
+          />
+          <ModeTab label="Saved" active={mode === 'saved'} onPress={() => setMode('saved')} />
           <ModeTab label="Stylists" active={mode === 'stylists'} onPress={() => setMode('stylists')} />
         </View>
       </View>
@@ -136,6 +126,10 @@ export default function DiscoverScreen() {
             />
           }
         />
+      ) : mode === 'tryon' ? (
+        <TryOnPanel embedded onOpenSaved={() => setMode('saved')} />
+      ) : mode === 'saved' ? (
+        <ReferencesPanel embedded />
       ) : (
         <StylistDirectory centered={centered} onOpen={(u) => router.push(`/u/${u}`)} />
       )}

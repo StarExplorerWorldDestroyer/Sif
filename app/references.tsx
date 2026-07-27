@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -61,7 +61,12 @@ async function pickFromCamera(): Promise<PickedImage | null> {
   return { uri: asset.uri, width: asset.width, height: asset.height };
 }
 
-export default function ReferencesScreen() {
+export type ReferencesPanelProps = {
+  /** When true, omit the stack header — used inside the Styles tab. */
+  embedded?: boolean;
+};
+
+export function ReferencesPanel({ embedded = false }: ReferencesPanelProps = {}) {
   const { user } = useAuth();
   const { toast, confirm, prompt } = useFeedback();
   const centered = useCenteredContent(720);
@@ -72,6 +77,34 @@ export default function ReferencesScreen() {
   const [viewing, setViewing] = useState<Inspiration | null>(null);
   const [savingLook, setSavingLook] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+
+  const addButton = (
+    <Pressable
+      onPress={() => setAddOpen(true)}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Add reference">
+      <IconSymbol name="plus" size={26} color={Palette.accent} />
+    </Pressable>
+  );
+
+  const wrap = (children: ReactNode) =>
+    embedded ? (
+      <View style={styles.safe}>
+        <View style={styles.embeddedBar}>
+          <Txt variant="label" color={Palette.textMuted}>
+            References
+          </Txt>
+          {addButton}
+        </View>
+        {children}
+      </View>
+    ) : (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <ScreenHeader title="References" right={addButton} />
+        {children}
+      </SafeAreaView>
+    );
 
   const reload = useCallback(async () => {
     if (!user) {
@@ -231,21 +264,8 @@ export default function ReferencesScreen() {
   const photos = items.filter((i) => i.kind === 'photo' && i.imageUrl);
   const links = items.filter((i) => i.kind === 'pin' || i.kind === 'board');
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScreenHeader
-        title="References"
-        right={
-          <Pressable
-            onPress={() => setAddOpen(true)}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Add reference">
-            <IconSymbol name="plus" size={26} color={Palette.accent} />
-          </Pressable>
-        }
-      />
-
+  return wrap(
+    <>
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={Palette.accent} />
@@ -314,13 +334,21 @@ export default function ReferencesScreen() {
                   onLongPress={() => onDelete(item)}
                   accessibilityRole="link"
                   accessibilityLabel={item.title || (item.kind === 'board' ? 'Pinterest board' : 'Pinterest pin')}>
-                  <View style={styles.linkIcon}>
-                    <IconSymbol
-                      name={item.kind === 'board' ? 'bookmark.fill' : 'link'}
-                      size={18}
-                      color={Palette.accent}
+                  {item.previewUrl ? (
+                    <Image
+                      source={{ uri: item.previewUrl }}
+                      style={styles.linkThumb}
+                      contentFit="cover"
                     />
-                  </View>
+                  ) : (
+                    <View style={styles.linkIcon}>
+                      <IconSymbol
+                        name={item.kind === 'board' ? 'bookmark.fill' : 'link'}
+                        size={18}
+                        color={Palette.accent}
+                      />
+                    </View>
+                  )}
                   <View style={styles.linkBody}>
                     <Txt variant="body" numberOfLines={1}>
                       {item.title || (item.kind === 'board' ? 'Pinterest board' : 'Pinterest pin')}
@@ -433,8 +461,12 @@ export default function ReferencesScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </>,
   );
+}
+
+export default function ReferencesScreen() {
+  return <ReferencesPanel />;
 }
 
 function SheetBtn({ label, onPress }: { label: string; onPress: () => void }) {
@@ -447,6 +479,13 @@ function SheetBtn({ label, onPress }: { label: string; onPress: () => void }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Palette.bg },
+  embeddedBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxl, gap: Spacing.lg },
   intro: { marginBottom: Spacing.xs },
@@ -477,12 +516,18 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   linkIcon: {
-    width: 36,
-    height: 36,
+    width: 56,
+    height: 72,
     borderRadius: Radius.sm,
     backgroundColor: Palette.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  linkThumb: {
+    width: 56,
+    height: 72,
+    borderRadius: Radius.sm,
+    backgroundColor: Palette.surfaceAlt,
   },
   linkBody: { flex: 1, gap: 2 },
   busyRow: {
