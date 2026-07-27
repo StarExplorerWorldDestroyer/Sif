@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -24,6 +24,7 @@ import { Txt } from '@/components/ui/text';
 import { Glow, Palette, Radius, Spacing } from '@/constants/theme';
 import { useCenteredContent } from '@/hooks/use-responsive';
 import { errorMessage, reportClientError, UserError } from '@/lib/errors';
+import { listInspirations, type Inspiration } from '@/lib/inspirations';
 import { hasPhoto, primaryPhotoUri } from '@/lib/photos';
 import {
   EFFECTS,
@@ -184,6 +185,7 @@ export default function TryOnScreen() {
   const { user } = useAuth();
   const { toast, confirm } = useFeedback();
   const { haircuts } = useHaircuts();
+  const router = useRouter();
   const centered = useCenteredContent(560);
   const params = useLocalSearchParams<{ ref?: string; style?: string }>();
 
@@ -215,6 +217,9 @@ export default function TryOnScreen() {
   // Hairstyle can also use a reference photo instead of the library.
   const [useReference, setUseReference] = useState(false);
   const [reference, setReference] = useState<PickedImage | null>(null);
+  const [refPickerOpen, setRefPickerOpen] = useState(false);
+  const [savedRefs, setSavedRefs] = useState<Inspiration[]>([]);
+  const [savedRefsLoading, setSavedRefsLoading] = useState(false);
 
   // Color settings.
   const [colorHex, setColorHex] = useState<string | null>(null);
@@ -361,13 +366,34 @@ export default function TryOnScreen() {
     await addSelfieFromUri(uri, dims);
   };
 
+  const openSavedRefPicker = async () => {
+    if (!user) return;
+    setRefPickerOpen(true);
+    setSavedRefsLoading(true);
+    const list = await listInspirations(user.id);
+    setSavedRefs(list.filter((i) => i.kind === 'photo' && i.imageUrl));
+    setSavedRefsLoading(false);
+  };
+
   const onPickReference = async () => {
-    // Reference styles are almost always library photos, not selfies.
-    const img = await pickFromLibrary();
-    if (img) {
-      setReference(img);
-      setResult(null);
+    const chooseLibrary = async () => {
+      const img = await pickFromLibrary();
+      if (img) {
+        setReference(img);
+        setResult(null);
+      }
+    };
+    if (Platform.OS === 'web') {
+      // Web: offer library or saved references via confirm-style choices isn't great;
+      // library first, with a secondary path from the "Saved" link below the box.
+      await chooseLibrary();
+      return;
     }
+    Alert.alert('Reference photo', undefined, [
+      { text: 'Photo Library', onPress: () => void chooseLibrary() },
+      { text: 'My references', onPress: () => void openSavedRefPicker() },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const onPickHex = (hex: string) => {
@@ -588,6 +614,68 @@ export default function TryOnScreen() {
     </Modal>
   );
 
+  const renderSavedRefPicker = () => (
+    <Modal
+      visible={refPickerOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setRefPickerOpen(false)}>
+      <Pressable style={styles.refPickerBackdrop} onPress={() => setRefPickerOpen(false)}>
+        <Pressable style={styles.refPickerSheet} onPress={() => {}}>
+          <Txt variant="heading" style={styles.refPickerTitle}>
+            My references
+          </Txt>
+          {savedRefsLoading ? (
+            <ActivityIndicator color={Palette.accent} style={{ marginVertical: Spacing.xl }} />
+          ) : savedRefs.length === 0 ? (
+            <View style={styles.refPickerEmpty}>
+              <Txt variant="label" color={Palette.textMuted} style={{ textAlign: 'center' }}>
+                No saved reference photos yet. Add some from Styles → Saved.
+              </Txt>
+              <Pressable
+                style={styles.refPickerManage}
+                onPress={() => {
+                  setRefPickerOpen(false);
+                  router.push('/references');
+                }}>
+                <Txt variant="label" color={Palette.accent}>
+                  Open Saved
+                </Txt>
+              </Pressable>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={styles.refPickerGrid}>
+              {savedRefs.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={styles.refPickerCell}
+                  onPress={() => {
+                    if (!item.imageUrl) return;
+                    setReference({ uri: item.imageUrl });
+                    setResult(null);
+                    setRefPickerOpen(false);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.title || 'Use this reference'}>
+                  <Image
+                    source={{ uri: item.imageUrl! }}
+                    style={styles.refPickerImg}
+                    contentFit="cover"
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+          <Pressable style={styles.refPickerCancel} onPress={() => setRefPickerOpen(false)}>
+            <Txt variant="label" color={Palette.textMuted}>
+              Cancel
+            </Txt>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+
   // --- Loading consent state ---
   if (consent === null) {
     return (
@@ -691,6 +779,7 @@ export default function TryOnScreen() {
           )}
         </ScrollView>
         {renderLookViewer()}
+        {renderSavedRefPicker()}
       </SafeAreaView>
     );
   }
@@ -874,17 +963,44 @@ export default function TryOnScreen() {
             ) : null}
 
             {effect === 'hairstyle' && useReference ? (
-              <Pressable
-                style={styles.refBox}
-                onPress={onPickReference}
-                accessibilityRole="button"
-                accessibilityLabel="Choose a reference style photo">
-                {reference ? (
-                  <Image source={{ uri: reference.uri }} style={styles.fill} contentFit="cover" />
-                ) : (
-                  <Txt variant="label" color={Palette.textMuted}>Tap to upload a photo of the hairstyle you want</Txt>
-                )}
-              </Pressable>
+              <View style={styles.refWrap}>
+                <Pressable
+                  style={styles.refBox}
+                  onPress={onPickReference}
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose a reference style photo">
+                  {reference ? (
+                    <Image source={{ uri: reference.uri }} style={styles.fill} contentFit="cover" />
+                  ) : (
+                    <Txt variant="label" color={Palette.textMuted}>
+                      Tap to pick a hairstyle photo
+                    </Txt>
+                  )}
+                </Pressable>
+                <View style={styles.refLinks}>
+                  <Pressable
+                    onPress={() => void openSavedRefPicker()}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel="Choose from saved references">
+                    <Txt variant="caption" color={Palette.accent}>
+                      From my references
+                    </Txt>
+                  </Pressable>
+                  <Txt variant="caption" color={Palette.textDim}>
+                    ·
+                  </Txt>
+                  <Pressable
+                    onPress={() => router.push('/references')}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel="Manage saved references">
+                    <Txt variant="caption" color={Palette.textMuted}>
+                      Manage saved
+                    </Txt>
+                  </Pressable>
+                </View>
+              </View>
             ) : stylesLoading && styles_.length === 0 ? (
               <View style={styles.stylesLoading}>
                 <ActivityIndicator color={Palette.accent} />
@@ -1020,6 +1136,7 @@ export default function TryOnScreen() {
         )}
       </ScrollView>
       {renderLookViewer()}
+      {renderSavedRefPicker()}
     </SafeAreaView>
   );
 }
@@ -1215,6 +1332,7 @@ const styles = StyleSheet.create({
   ctaDisabled: { opacity: 0.4 },
   ctaTxt: { letterSpacing: 4 },
 
+  refWrap: { gap: Spacing.sm },
   refBox: {
     height: 200,
     borderRadius: Radius.lg,
@@ -1226,6 +1344,37 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     padding: Spacing.lg,
   },
+  refLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+  refPickerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
+  },
+  refPickerSheet: {
+    backgroundColor: Palette.surface,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    padding: Spacing.xl,
+    maxHeight: '70%',
+    gap: Spacing.md,
+  },
+  refPickerTitle: { textAlign: 'center' },
+  refPickerEmpty: { gap: Spacing.md, paddingVertical: Spacing.lg },
+  refPickerManage: { alignItems: 'center', paddingVertical: Spacing.sm },
+  refPickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    paddingBottom: Spacing.md,
+  },
+  refPickerCell: { width: '31%', aspectRatio: 3 / 4, borderRadius: Radius.md, overflow: 'hidden' },
+  refPickerImg: { width: '100%', height: '100%', backgroundColor: Palette.surfaceAlt },
+  refPickerCancel: { alignItems: 'center', paddingVertical: Spacing.md },
 
   resultWrap: { marginTop: Spacing.lg, gap: Spacing.sm },
   resultImg: { width: '100%', aspectRatio: 3 / 4, borderRadius: Radius.lg, backgroundColor: Palette.surface },

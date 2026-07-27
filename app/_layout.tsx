@@ -119,6 +119,7 @@ function RootNavigator() {
       <Stack.Screen name="availability" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="services" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="tryon" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="references" options={{ headerShown: false }} />
       <Stack.Screen name="reset" options={{ headerShown: false }} />
       <Stack.Screen name="privacy" options={{ headerShown: false }} />
       <Stack.Screen name="terms" options={{ headerShown: false }} />

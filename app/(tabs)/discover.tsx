@@ -99,6 +99,15 @@ export default function DiscoverScreen() {
               Try a look
             </Txt>
           </Pressable>
+          <Pressable
+            style={styles.modeTab}
+            onPress={() => router.push('/references')}
+            accessibilityRole="button"
+            accessibilityLabel="Saved reference photos and Pinterest links">
+            <Txt variant="label" color={Palette.textMuted}>
+              Saved
+            </Txt>
+          </Pressable>
           <ModeTab label="Stylists" active={mode === 'stylists'} onPress={() => setMode('stylists')} />
         </View>
       </View>
