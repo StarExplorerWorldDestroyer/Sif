@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -181,13 +181,35 @@ function runStep(step: LookStep, selfiePath: string) {
   return requestTryOn({ kind: step.kind, selfiePath, templateId: step.templateId, styleLabel: step.label });
 }
 
-export default function TryOnScreen() {
+export type TryOnPanelProps = {
+  /** When true, omit the stack header — used inside the Styles tab. */
+  embedded?: boolean;
+  /** Prefer switching the Styles tab to Saved instead of pushing /references. */
+  onOpenSaved?: () => void;
+};
+
+export function TryOnPanel({ embedded = false, onOpenSaved }: TryOnPanelProps = {}) {
   const { user } = useAuth();
   const { toast, confirm } = useFeedback();
   const { haircuts } = useHaircuts();
   const router = useRouter();
   const centered = useCenteredContent(560);
   const params = useLocalSearchParams<{ ref?: string; style?: string }>();
+
+  const goSaved = useCallback(() => {
+    if (onOpenSaved) onOpenSaved();
+    else router.push('/references');
+  }, [onOpenSaved, router]);
+
+  const wrap = (children: ReactNode) =>
+    embedded ? (
+      <View style={styles.safe}>{children}</View>
+    ) : (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <ScreenHeader title="Try a look" />
+        {children}
+      </SafeAreaView>
+    );
 
   const [consent, setConsent] = useState<boolean | null>(null);
   const [savingConsent, setSavingConsent] = useState(false);
@@ -636,7 +658,7 @@ export default function TryOnScreen() {
                 style={styles.refPickerManage}
                 onPress={() => {
                   setRefPickerOpen(false);
-                  router.push('/references');
+                  goSaved();
                 }}>
                 <Txt variant="label" color={Palette.accent}>
                   Open Saved
@@ -678,49 +700,43 @@ export default function TryOnScreen() {
 
   // --- Loading consent state ---
   if (consent === null) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScreenHeader title="Try a look" />
-        <View style={styles.center}>
-          <ActivityIndicator color={Palette.accent} />
-        </View>
-      </SafeAreaView>
+    return wrap(
+      <View style={styles.center}>
+        <ActivityIndicator color={Palette.accent} />
+      </View>,
     );
   }
 
   // --- Consent gate ---
   if (!consent) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScreenHeader title="Try a look" />
-        <ScrollView contentContainerStyle={[styles.body, centered ?? undefined]}>
-          <Txt variant="title" glow color={Palette.accent} style={styles.consentTitle}>
-            See a new look on you
-          </Txt>
-          <Txt variant="body" color={Palette.textMuted} style={styles.consentText}>
-            Upload a selfie and our AI previews different hairstyles, colors, and more on your own
-            face. To do this, your photo is sent securely to our styling provider (Perfect Corp /
-            YouCam) to generate the preview.
-          </Txt>
-          <View style={styles.consentList}>
-            <Txt variant="label" color={Palette.textMuted}>• Your photos are stored privately — only you can see them.</Txt>
-            <Txt variant="label" color={Palette.textMuted}>• They’re used only to generate your previews, never to identify you or for ads.</Txt>
-            <Txt variant="label" color={Palette.textMuted}>• You can stop using try-on anytime; deleting your account removes them.</Txt>
-          </View>
-          <Pressable
-            style={[styles.cta, savingConsent && styles.ctaDisabled]}
-            onPress={onAgree}
-            disabled={savingConsent}
-            accessibilityRole="button"
-            accessibilityLabel="Agree and continue">
-            {savingConsent ? (
-              <ActivityIndicator color={Palette.accent} />
-            ) : (
-              <Txt variant="label" color={Palette.accent} style={styles.ctaTxt}>I AGREE & CONTINUE</Txt>
-            )}
-          </Pressable>
-        </ScrollView>
-      </SafeAreaView>
+    return wrap(
+      <ScrollView contentContainerStyle={[styles.body, centered ?? undefined]}>
+        <Txt variant="title" glow color={Palette.accent} style={styles.consentTitle}>
+          See a new look on you
+        </Txt>
+        <Txt variant="body" color={Palette.textMuted} style={styles.consentText}>
+          Upload a selfie and our AI previews different hairstyles, colors, and more on your own
+          face. To do this, your photo is sent securely to our styling provider (Perfect Corp /
+          YouCam) to generate the preview.
+        </Txt>
+        <View style={styles.consentList}>
+          <Txt variant="label" color={Palette.textMuted}>• Your photos are stored privately — only you can see them.</Txt>
+          <Txt variant="label" color={Palette.textMuted}>• They’re used only to generate your previews, never to identify you or for ads.</Txt>
+          <Txt variant="label" color={Palette.textMuted}>• You can stop using try-on anytime; deleting your account removes them.</Txt>
+        </View>
+        <Pressable
+          style={[styles.cta, savingConsent && styles.ctaDisabled]}
+          onPress={onAgree}
+          disabled={savingConsent}
+          accessibilityRole="button"
+          accessibilityLabel="Agree and continue">
+          {savingConsent ? (
+            <ActivityIndicator color={Palette.accent} />
+          ) : (
+            <Txt variant="label" color={Palette.accent} style={styles.ctaTxt}>I AGREE & CONTINUE</Txt>
+          )}
+        </Pressable>
+      </ScrollView>,
     );
   }
 
@@ -728,9 +744,8 @@ export default function TryOnScreen() {
 
   // --- Gallery (saved looks) ---
   if (tab === 'gallery') {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScreenHeader title="Try a look" />
+    return wrap(
+      <>
         <View style={[styles.modeToggleWrap, centered ?? undefined]}>
           <View style={styles.modeToggle}>
             <Pressable style={styles.modeTab} onPress={() => setTab('create')} accessibilityRole="button">
@@ -780,14 +795,13 @@ export default function TryOnScreen() {
         </ScrollView>
         {renderLookViewer()}
         {renderSavedRefPicker()}
-      </SafeAreaView>
+      </>,
     );
   }
 
   // --- Main studio (create) ---
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScreenHeader title="Try a look" />
+  return wrap(
+    <>
       <View style={[styles.modeToggleWrap, centered ?? undefined]}>
         <View style={styles.modeToggle}>
           <Pressable style={[styles.modeTab, styles.modeTabActive]} accessibilityRole="button">
@@ -991,7 +1005,7 @@ export default function TryOnScreen() {
                     ·
                   </Txt>
                   <Pressable
-                    onPress={() => router.push('/references')}
+                    onPress={goSaved}
                     hitSlop={6}
                     accessibilityRole="button"
                     accessibilityLabel="Manage saved references">
@@ -1137,8 +1151,13 @@ export default function TryOnScreen() {
       </ScrollView>
       {renderLookViewer()}
       {renderSavedRefPicker()}
-    </SafeAreaView>
+    </>,
   );
+}
+
+/** Standalone route (e.g. deep-link “Try this look” from a style detail). */
+export default function TryOnScreen() {
+  return <TryOnPanel />;
 }
 
 const styles = StyleSheet.create({
