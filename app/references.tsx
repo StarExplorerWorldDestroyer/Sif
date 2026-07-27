@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   Share,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,7 +21,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { Txt } from '@/components/ui/text';
 import { Palette, Radius, Spacing } from '@/constants/theme';
-import { useCenteredContent } from '@/hooks/use-responsive';
+import { useCenteredContent, useIsDesktop } from '@/hooks/use-responsive';
 import { useRefresh } from '@/hooks/use-refresh';
 import { errorMessage, reportClientError, UserError } from '@/lib/errors';
 import {
@@ -35,6 +36,38 @@ import {
 } from '@/lib/inspirations';
 import { useAuth } from '@/store/auth';
 import { useFeedback } from '@/store/feedback';
+
+/** Display URI for a tile (saved photo or Pinterest preview). */
+function tileUri(item: Inspiration): string | null {
+  return item.imageUrl || item.previewUrl || null;
+}
+
+/** Deterministic height/width ratio so the board feels masonry-like. */
+function tileAspect(item: Inspiration): number {
+  // width / height — smaller = taller pin
+  const ratios = [0.62, 0.72, 0.8, 0.9, 1.0, 1.12];
+  let hash = 0;
+  for (let i = 0; i < item.id.length; i++) {
+    hash = (hash + item.id.charCodeAt(i) * (i + 1)) % 997;
+  }
+  return ratios[hash % ratios.length];
+}
+
+/** Split items into N columns, packing into the currently shortest column. */
+function buildMasonryColumns(items: Inspiration[], columnCount: number): Inspiration[][] {
+  const cols: Inspiration[][] = Array.from({ length: columnCount }, () => []);
+  const heights = Array.from({ length: columnCount }, () => 0);
+  for (const item of items) {
+    let shortest = 0;
+    for (let i = 1; i < columnCount; i++) {
+      if (heights[i] < heights[shortest]) shortest = i;
+    }
+    cols[shortest].push(item);
+    // Relative column height ≈ 1 / aspect (taller tiles weigh more)
+    heights[shortest] += 1 / tileAspect(item);
+  }
+  return cols;
+}
 
 type PickedImage = { uri: string; width?: number; height?: number };
 
@@ -69,7 +102,9 @@ export type ReferencesPanelProps = {
 export function ReferencesPanel({ embedded = false }: ReferencesPanelProps = {}) {
   const { user } = useAuth();
   const { toast, confirm, prompt } = useFeedback();
-  const centered = useCenteredContent(720);
+  const centered = useCenteredContent(1100);
+  const isDesktop = useIsDesktop();
+  const { width: windowWidth } = useWindowDimensions();
 
   const [items, setItems] = useState<Inspiration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -236,15 +271,16 @@ export function ReferencesPanel({ embedded = false }: ReferencesPanelProps = {})
   };
 
   const onSaveShare = async (item: Inspiration) => {
-    if (!item.imageUrl) return;
+    const uri = tileUri(item);
+    if (!uri) return;
     setSavingLook(true);
     try {
       if (Platform.OS === 'web') {
-        await Linking.openURL(item.imageUrl);
+        await Linking.openURL(uri);
         toast('Opened photo — right-click or long-press to save.', { tone: 'success' });
         return;
       }
-      const local = await cacheInspirationImage(item.imageUrl);
+      const local = await cacheInspirationImage(uri);
       await Share.share(
         Platform.OS === 'ios'
           ? { url: local }
@@ -261,8 +297,17 @@ export function ReferencesPanel({ embedded = false }: ReferencesPanelProps = {})
     }
   };
 
-  const photos = items.filter((i) => i.kind === 'photo' && i.imageUrl);
-  const links = items.filter((i) => i.kind === 'pin' || i.kind === 'board');
+  const onTilePress = (item: Inspiration) => {
+    if (tileUri(item)) setViewing(item);
+    else void onOpenLink(item);
+  };
+
+  // 2 cols phone / tablet; 3 on wide desktop. Content is capped by centered maxWidth.
+  const columnCount = isDesktop && windowWidth >= 1100 ? 3 : 2;
+  const columns = useMemo(
+    () => buildMasonryColumns(items, columnCount),
+    [items, columnCount],
+  );
 
   return wrap(
     <>
@@ -287,81 +332,59 @@ export function ReferencesPanel({ embedded = false }: ReferencesPanelProps = {})
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.accent} />
           }>
-          <Txt variant="label" color={Palette.textMuted} style={styles.intro}>
-            Photos you can enlarge, share, and use in Try-on — plus Pinterest links that open in the app.
-          </Txt>
-
-          {photos.length > 0 ? (
-            <View style={styles.section}>
-              <Txt variant="heading" style={styles.sectionTitle}>
-                Photos
-              </Txt>
-              <View style={styles.grid}>
-                {photos.map((item) => (
-                  <Pressable
-                    key={item.id}
-                    style={styles.cell}
-                    onPress={() => setViewing(item)}
-                    onLongPress={() => onDelete(item)}
-                    accessibilityRole="button"
-                    accessibilityLabel={item.title || 'Reference photo'}>
-                    <Image
-                      source={{ uri: item.imageUrl! }}
-                      style={styles.thumb}
-                      contentFit="cover"
-                    />
-                    {item.sourceUrl ? (
-                      <View style={styles.badge}>
-                        <IconSymbol name="link" size={12} color={Palette.text} />
-                      </View>
-                    ) : null}
-                  </Pressable>
-                ))}
+          <View style={styles.masonry}>
+            {columns.map((col, colIndex) => (
+              <View key={`col-${colIndex}`} style={styles.masonryCol}>
+                {col.map((item) => {
+                  const uri = tileUri(item);
+                  const isLink = item.kind === 'pin' || item.kind === 'board';
+                  return (
+                    <Pressable
+                      key={item.id}
+                      style={[styles.tile, { aspectRatio: tileAspect(item) }]}
+                      onPress={() => onTilePress(item)}
+                      onLongPress={() => onDelete(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        item.title ||
+                        (item.kind === 'board'
+                          ? 'Pinterest board'
+                          : item.kind === 'pin'
+                            ? 'Pinterest pin'
+                            : 'Reference photo')
+                      }>
+                      {uri ? (
+                        <Image source={{ uri }} style={styles.tileImg} contentFit="cover" />
+                      ) : (
+                        <View style={styles.tileFallback}>
+                          <IconSymbol
+                            name={item.kind === 'board' ? 'bookmark.fill' : 'link'}
+                            size={28}
+                            color={Palette.accent}
+                          />
+                          <Txt variant="caption" color={Palette.textMuted} numberOfLines={2} style={styles.tileFallbackText}>
+                            {item.title || (item.kind === 'board' ? 'Board' : 'Pin')}
+                          </Txt>
+                        </View>
+                      )}
+                      {isLink ? (
+                        <View style={styles.tileBadge}>
+                          <IconSymbol name="arrow.up.right" size={12} color={Palette.text} />
+                        </View>
+                      ) : null}
+                      {item.title ? (
+                        <View style={styles.tileCaption}>
+                          <Txt variant="caption" color={Palette.text} numberOfLines={2}>
+                            {item.title}
+                          </Txt>
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
               </View>
-            </View>
-          ) : null}
-
-          {links.length > 0 ? (
-            <View style={styles.section}>
-              <Txt variant="heading" style={styles.sectionTitle}>
-                Pins & boards
-              </Txt>
-              {links.map((item) => (
-                <Pressable
-                  key={item.id}
-                  style={styles.linkRow}
-                  onPress={() => onOpenLink(item)}
-                  onLongPress={() => onDelete(item)}
-                  accessibilityRole="link"
-                  accessibilityLabel={item.title || (item.kind === 'board' ? 'Pinterest board' : 'Pinterest pin')}>
-                  {item.previewUrl ? (
-                    <Image
-                      source={{ uri: item.previewUrl }}
-                      style={styles.linkThumb}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View style={styles.linkIcon}>
-                      <IconSymbol
-                        name={item.kind === 'board' ? 'bookmark.fill' : 'link'}
-                        size={18}
-                        color={Palette.accent}
-                      />
-                    </View>
-                  )}
-                  <View style={styles.linkBody}>
-                    <Txt variant="body" numberOfLines={1}>
-                      {item.title || (item.kind === 'board' ? 'Pinterest board' : 'Pinterest pin')}
-                    </Txt>
-                    <Txt variant="caption" color={Palette.textMuted} numberOfLines={1}>
-                      {item.url}
-                    </Txt>
-                  </View>
-                  <IconSymbol name="arrow.up.right" size={16} color={Palette.textDim} />
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
+            ))}
+          </View>
 
           {busy ? (
             <View style={styles.busyRow}>
@@ -403,9 +426,9 @@ export function ReferencesPanel({ embedded = false }: ReferencesPanelProps = {})
         onRequestClose={() => setViewing(null)}>
         <View style={styles.lightbox}>
           <Pressable style={styles.lightboxBackdrop} onPress={() => setViewing(null)} />
-          {viewing?.imageUrl ? (
+          {viewing && tileUri(viewing) ? (
             <Image
-              source={{ uri: viewing.imageUrl }}
+              source={{ uri: tileUri(viewing)! }}
               style={styles.lightboxImage}
               contentFit="contain"
             />
@@ -487,49 +510,59 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxl, gap: Spacing.lg },
-  intro: { marginBottom: Spacing.xs },
-  section: { gap: Spacing.md },
-  sectionTitle: { marginBottom: Spacing.xs },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  cell: { width: '31%', aspectRatio: 3 / 4, borderRadius: Radius.md, overflow: 'hidden' },
-  thumb: { width: '100%', height: '100%', backgroundColor: Palette.surface },
-  badge: {
+  content: {
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xxl,
+    width: '100%',
+  },
+  masonry: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+  },
+  masonryCol: {
+    flex: 1,
+    gap: Spacing.sm,
+  },
+  tile: {
+    width: '100%',
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    backgroundColor: Palette.surface,
+  },
+  tileImg: { width: '100%', height: '100%' },
+  tileFallback: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    backgroundColor: Palette.surfaceAlt,
+  },
+  tileFallbackText: { textAlign: 'center' },
+  tileBadge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
     borderRadius: Radius.pill,
     backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.md,
-    marginBottom: Spacing.sm,
+  tileCaption: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  linkIcon: {
-    width: 56,
-    height: 72,
-    borderRadius: Radius.sm,
-    backgroundColor: Palette.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  linkThumb: {
-    width: 56,
-    height: 72,
-    borderRadius: Radius.sm,
-    backgroundColor: Palette.surfaceAlt,
-  },
-  linkBody: { flex: 1, gap: 2 },
   busyRow: {
     flexDirection: 'row',
     alignItems: 'center',
