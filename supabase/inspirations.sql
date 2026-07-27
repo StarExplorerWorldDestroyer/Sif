@@ -61,6 +61,9 @@ create table if not exists public.inspirations (
   -- pin/board rows: the URL to open in Pinterest
   url text,
 
+  -- pin/board: public thumbnail from Pinterest oEmbed (optional)
+  preview_url text,
+
   -- optional link to the client Styles catalog slug (e.g. 'french-crop')
   style_slug text,
 

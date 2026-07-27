@@ -334,13 +334,21 @@ export function ReferencesPanel({ embedded = false }: ReferencesPanelProps = {})
                   onLongPress={() => onDelete(item)}
                   accessibilityRole="link"
                   accessibilityLabel={item.title || (item.kind === 'board' ? 'Pinterest board' : 'Pinterest pin')}>
-                  <View style={styles.linkIcon}>
-                    <IconSymbol
-                      name={item.kind === 'board' ? 'bookmark.fill' : 'link'}
-                      size={18}
-                      color={Palette.accent}
+                  {item.previewUrl ? (
+                    <Image
+                      source={{ uri: item.previewUrl }}
+                      style={styles.linkThumb}
+                      contentFit="cover"
                     />
-                  </View>
+                  ) : (
+                    <View style={styles.linkIcon}>
+                      <IconSymbol
+                        name={item.kind === 'board' ? 'bookmark.fill' : 'link'}
+                        size={18}
+                        color={Palette.accent}
+                      />
+                    </View>
+                  )}
                   <View style={styles.linkBody}>
                     <Txt variant="body" numberOfLines={1}>
                       {item.title || (item.kind === 'board' ? 'Pinterest board' : 'Pinterest pin')}
@@ -508,12 +516,18 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   linkIcon: {
-    width: 36,
-    height: 36,
+    width: 56,
+    height: 72,
     borderRadius: Radius.sm,
     backgroundColor: Palette.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  linkThumb: {
+    width: 56,
+    height: 72,
+    borderRadius: Radius.sm,
+    backgroundColor: Palette.surfaceAlt,
   },
   linkBody: { flex: 1, gap: 2 },
   busyRow: {

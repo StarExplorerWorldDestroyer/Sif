@@ -19,6 +19,8 @@ export type Inspiration = {
   storagePath: string | null;
   sourceUrl: string | null;
   url: string | null;
+  /** Public Pinterest oEmbed thumbnail (pin/board rows). */
+  previewUrl: string | null;
   styleSlug: string | null;
   createdAt: string;
   /** Signed display URL for photo rows. */
@@ -26,6 +28,58 @@ export type Inspiration = {
 };
 
 export type PinterestLinkKind = 'pin' | 'board' | 'other';
+
+type PinterestMeta = {
+  url: string;
+  title: string | null;
+  thumbnailUrl: string | null;
+};
+
+/** Normalize a pasted URL to an absolute https URL string. */
+export function normalizeHttpsUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+/**
+ * Follow redirects (e.g. pin.it → www.pinterest.com/pin/…) so we store and
+ * open a real Pinterest page URL. Falls back to the input on failure.
+ */
+export async function resolveCanonicalUrl(raw: string): Promise<string> {
+  const start = normalizeHttpsUrl(raw);
+  try {
+    new URL(start);
+  } catch {
+    return start;
+  }
+  try {
+    const res = await fetch(start, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: { Accept: 'text/html,application/json' },
+    });
+    // Prefer the final response URL after redirects.
+    if (res.url && /^https?:\/\//i.test(res.url)) {
+      // Strip noisy invite/share query junk when present.
+      try {
+        const u = new URL(res.url);
+        if (u.hostname.includes('pinterest.')) {
+          u.search = '';
+          u.hash = '';
+          return u.toString();
+        }
+        return res.url;
+      } catch {
+        return res.url;
+      }
+    }
+  } catch {
+    // ignore — keep original
+  }
+  return start;
+}
 
 /** Classify a pasted URL as a Pinterest pin, board, or other Pinterest page. */
 export function classifyPinterestUrl(raw: string): {
@@ -36,7 +90,7 @@ export function classifyPinterestUrl(raw: string): {
   if (!trimmed) return { kind: null, url: trimmed };
   let parsed: URL;
   try {
-    parsed = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+    parsed = new URL(normalizeHttpsUrl(trimmed));
   } catch {
     return { kind: null, url: trimmed };
   }
@@ -58,24 +112,72 @@ export function classifyPinterestUrl(raw: string): {
   return { kind: 'other', url: parsed.toString() };
 }
 
-/** Open a pin/board URL in the Pinterest app if possible, else the browser. */
+/**
+ * Fetch title + thumbnail via Pinterest oEmbed.
+ * Tries a direct call first (works on native); falls back to our edge function
+ * when the browser blocks CORS.
+ */
+export async function fetchPinterestMeta(rawUrl: string): Promise<PinterestMeta> {
+  const resolved = await resolveCanonicalUrl(rawUrl);
+  const classified = classifyPinterestUrl(resolved);
+  const target = classified.url || resolved;
+
+  const viaEdge = async (): Promise<PinterestMeta> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('pinterest-preview', {
+        body: { url: target },
+      });
+      if (error || !data) return { url: target, title: null, thumbnailUrl: null };
+      return {
+        url: typeof data.url === 'string' ? data.url : target,
+        title: typeof data.title === 'string' ? data.title : null,
+        thumbnailUrl: typeof data.thumbnailUrl === 'string' ? data.thumbnailUrl : null,
+      };
+    } catch {
+      return { url: target, title: null, thumbnailUrl: null };
+    }
+  };
+
+  if (Platform.OS === 'web') {
+    // Browsers can't call pinterest.com/oembed.json (no CORS).
+    return viaEdge();
+  }
+
+  try {
+    const endpoint = `https://www.pinterest.com/oembed.json?url=${encodeURIComponent(target)}`;
+    const res = await fetch(endpoint, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return viaEdge();
+    const data = (await res.json()) as {
+      title?: string;
+      thumbnail_url?: string;
+    };
+    return {
+      url: target,
+      title: data.title?.trim() || null,
+      thumbnailUrl: data.thumbnail_url?.trim() || null,
+    };
+  } catch {
+    return viaEdge();
+  }
+}
+
+/**
+ * Open a saved pin/board in the browser (or Pinterest via universal links).
+ * Always uses https — the old pinterest:// scheme opened blank tabs, especially
+ * for pin.it short links.
+ */
 export async function openInspirationLink(url: string): Promise<void> {
   const trimmed = url.trim();
   if (!trimmed) return;
-  // iOS/Android: try the pinterest:// scheme first for a better handoff.
-  try {
-    const web = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
-    const path = web.pathname + web.search;
-    const appUrl = `pinterest://www.pinterest.com${path}`;
-    const can = await Linking.canOpenURL(appUrl);
-    if (can) {
-      await Linking.openURL(appUrl);
-      return;
-    }
-  } catch {
-    // fall through to https
+  const openable = await resolveCanonicalUrl(trimmed);
+  const href = normalizeHttpsUrl(openable);
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.open(href, '_blank', 'noopener,noreferrer');
+    return;
   }
-  await Linking.openURL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+  await Linking.openURL(href);
 }
 
 async function downscaleToJpeg(uri: string, width?: number, height?: number): Promise<string> {
@@ -115,10 +217,39 @@ function rowToInspiration(row: any, imageUrl?: string): Inspiration {
     storagePath: row.storage_path ?? null,
     sourceUrl: row.source_url ?? null,
     url: row.url ?? null,
+    previewUrl: row.preview_url ?? null,
     styleSlug: row.style_slug ?? null,
     createdAt: row.created_at,
     imageUrl,
   };
+}
+
+/** Backfill oEmbed preview/title for a link row that was saved without one. */
+async function enrichLinkPreview(row: any): Promise<any> {
+  if (row.kind === 'photo' || row.preview_url || !row.url) return row;
+  const meta = await fetchPinterestMeta(row.url);
+  if (!meta.thumbnailUrl && !meta.title) {
+    // Still upgrade short links to the canonical URL when we can.
+    if (meta.url && meta.url !== row.url) {
+      await supabase
+        .from('inspirations')
+        .update({ url: meta.url, updated_at: new Date().toISOString() })
+        .eq('id', row.id);
+      return { ...row, url: meta.url };
+    }
+    return row;
+  }
+  const patch = {
+    url: meta.url || row.url,
+    preview_url: meta.thumbnailUrl,
+    title:
+      row.title && row.title !== 'Pinterest pin' && row.title !== 'Pinterest board'
+        ? row.title
+        : meta.title || row.title,
+    updated_at: new Date().toISOString(),
+  };
+  await supabase.from('inspirations').update(patch).eq('id', row.id);
+  return { ...row, ...patch };
 }
 
 /** List the user's inspirations (newest first), with signed URLs for photos. */
@@ -131,7 +262,24 @@ export async function listInspirations(userId: string): Promise<Inspiration[]> {
     .limit(200);
   if (error || !data) return [];
 
-  const photoPaths = data
+  // Best-effort: fill in missing pin previews (also upgrades pin.it → full URLs).
+  // Cap concurrent backfills so a large library doesn't stall the screen.
+  let pending = 0;
+  const enriched = await Promise.all(
+    data.map(async (r: any) => {
+      if ((r.kind === 'pin' || r.kind === 'board') && !r.preview_url && pending < 8) {
+        pending += 1;
+        try {
+          return await enrichLinkPreview(r);
+        } catch {
+          return r;
+        }
+      }
+      return r;
+    }),
+  );
+
+  const photoPaths = enriched
     .filter((r: any) => r.kind === 'photo' && r.storage_path)
     .map((r: any) => r.storage_path as string);
   const urlByPath = new Map<string, string>();
@@ -143,7 +291,7 @@ export async function listInspirations(userId: string): Promise<Inspiration[]> {
       if (s.path && s.signedUrl) urlByPath.set(s.path, s.signedUrl);
     }
   }
-  return data.map((r: any) =>
+  return enriched.map((r: any) =>
     rowToInspiration(r, r.storage_path ? urlByPath.get(r.storage_path) : undefined),
   );
 }
@@ -194,42 +342,33 @@ export async function addInspirationLink(
   rawUrl: string,
   opts?: { title?: string; note?: string; styleSlug?: string },
 ): Promise<Inspiration> {
-  const { kind, url } = classifyPinterestUrl(rawUrl);
-  if (!kind || kind === 'other') {
-    // Allow non-Pinterest https links as pins (generic inspiration link).
-    let normalized = rawUrl.trim();
-    if (!/^https?:\/\//i.test(normalized)) normalized = `https://${normalized}`;
-    try {
-      new URL(normalized);
-    } catch {
-      throw new Error('That doesn’t look like a valid link.');
-    }
-    const { data, error } = await supabase
-      .from('inspirations')
-      .insert({
-        user_id: userId,
-        kind: 'pin',
-        title: opts?.title?.trim() || 'Saved link',
-        note: opts?.note?.trim() ?? '',
-        url: normalized,
-        style_slug: opts?.styleSlug ?? null,
-      })
-      .select('*')
-      .single();
-    if (error || !data) throw error ?? new Error('Failed to save link');
-    return rowToInspiration(data);
+  const meta = await fetchPinterestMeta(rawUrl);
+  const classified = classifyPinterestUrl(meta.url || rawUrl);
+  const url = meta.url || classified.url || normalizeHttpsUrl(rawUrl);
+
+  try {
+    new URL(url);
+  } catch {
+    throw new Error('That doesn’t look like a valid link.');
   }
+
+  const kind: InspirationKind = classified.kind === 'board' ? 'board' : 'pin';
+  const defaultTitle =
+    kind === 'board'
+      ? 'Pinterest board'
+      : classified.kind
+        ? 'Pinterest pin'
+        : 'Saved link';
 
   const { data, error } = await supabase
     .from('inspirations')
     .insert({
       user_id: userId,
       kind,
-      title:
-        opts?.title?.trim() ||
-        (kind === 'board' ? 'Pinterest board' : 'Pinterest pin'),
+      title: opts?.title?.trim() || meta.title || defaultTitle,
       note: opts?.note?.trim() ?? '',
       url,
+      preview_url: meta.thumbnailUrl,
       style_slug: opts?.styleSlug ?? null,
     })
     .select('*')
